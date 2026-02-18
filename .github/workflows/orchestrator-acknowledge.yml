@@ -9,7 +9,7 @@ permissions:
 
 # Prevent concurrent runs for the same issue
 concurrency:
-  group: orchestrator-${{ github.event.issue.number }}
+  group: orchestrator-ack-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
