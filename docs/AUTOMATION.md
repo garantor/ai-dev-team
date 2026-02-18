@@ -26,7 +26,7 @@ The automation system consists of 5 GitHub Actions workflows:
 
 **What it does:**
 1. Extracts product idea from issue body
-2. Calls OpenAI API (or provides fallback template)
+2. Calls Google Gemini API (or provides fallback template)
 3. Generates comprehensive plan with:
    - Project overview
    - Features breakdown (P0/P1/P2)
@@ -540,7 +540,7 @@ await new Promise(resolve => setTimeout(resolve, 500));
 ### For Administrators
 
 **DO:**
-✅ Configure `OPENAI_API_KEY` for best experience
+✅ Configure `GOOGLE_API_KEY` for best experience
 ✅ Monitor workflow execution regularly
 ✅ Review failed workflow runs
 ✅ Keep workflows up to date
