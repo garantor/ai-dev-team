@@ -10,6 +10,11 @@ permissions:
   issues: write
   contents: read
 
+# Prevent concurrent runs for the same issue - coordinate with acknowledge workflow
+concurrency:
+  group: orchestrator-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -17,7 +22,8 @@ jobs:
     if: |
       (github.event_name == 'issues' && 
        contains(github.event.issue.labels.*.name, 'orchestrator') && 
-       contains(github.event.issue.labels.*.name, 'needs-planning')) ||
+       contains(github.event.issue.labels.*.name, 'needs-planning') &&
+       contains(github.event.issue.labels.*.name, 'processing')) ||
       (github.event_name == 'issue_comment' && 
        contains(github.event.issue.labels.*.name, 'orchestrator') && 
        contains(github.event.issue.labels.*.name, 'awaiting-approval') &&

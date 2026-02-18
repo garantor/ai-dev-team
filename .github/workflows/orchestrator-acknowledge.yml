@@ -2,10 +2,15 @@ name: Orchestrator - Instant Acknowledgment
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [opened]
 
 permissions:
   issues: write
+
+# Prevent concurrent runs for the same issue
+concurrency:
+  group: orchestrator-${{ github.event.issue.number }}
+  cancel-in-progress: false
 
 jobs:
   acknowledge:
@@ -18,7 +23,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check for existing acknowledgment
+        id: check_ack
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const hasAck = comments.data.some(c => 
+              c.body.includes('AI Dev Team Orchestrator') && 
+              c.body.includes('Your request has been received')
+            );
+            
+            core.setOutput('already_acknowledged', hasAck);
+            return hasAck;
+
       - name: Add Reaction to Issue
+        if: steps.check_ack.outputs.already_acknowledged != 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -30,6 +55,7 @@ jobs:
             });
 
       - name: Post Acknowledgment Comment
+        if: steps.check_ack.outputs.already_acknowledged != 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -70,6 +96,7 @@ jobs:
             });
 
       - name: Add Processing Label
+        if: steps.check_ack.outputs.already_acknowledged != 'true'
         uses: actions/github-script@v7
         with:
           script: |
