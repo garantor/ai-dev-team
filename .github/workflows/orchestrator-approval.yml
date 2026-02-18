@@ -2,7 +2,7 @@ name: Orchestrator - Handle Approval
 
 on:
   issue_comment:
-    types: [created]
+    types: [created, edited]
 
 permissions:
   issues: write
@@ -57,12 +57,25 @@ jobs:
             const commentUpper = comment.toUpperCase();
             
             let command = 'none';
+            
+            // Check for traditional commands
             if (commentUpper === 'APPROVE') {
               command = 'approve';
             } else if (commentUpper.startsWith('REVISE:')) {
               command = 'revise';
             } else if (commentUpper === 'REJECT') {
               command = 'reject';
+            }
+            
+            // Check for checkbox actions (e.g., [x] **APPROVE**)
+            if (command === 'none') {
+              if (comment.includes('[x] **APPROVE**')) {
+                command = 'approve';
+              } else if (comment.includes('[x] **REVISE**')) {
+                command = 'revise';
+              } else if (comment.includes('[x] **REJECT**')) {
+                command = 'reject';
+              }
             }
             
             core.setOutput('command', command);
