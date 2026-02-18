@@ -1,11 +1,40 @@
 # AI Dev Team Project
 
-> A collaborative software project powered by specialized AI agents
+> A collaborative software project powered by specialized AI agents with **fully autonomous workflow**
+
+## 🚀 Fully Autonomous Workflow
+
+**Just describe what you want to build, and the AI team will plan and implement it!**
+
+```
+You: "I want to create a web app that integrates with Uniswap for blockchain swapping"
+
+AI Team: Plans → Gets Your Approval → Builds → Tests → Ready to Merge! ✅
+```
+
+### Quick Start: Build Something
+1. [Create an Orchestrator Issue](../../issues/new?template=00-ai-orchestrator.yml)
+2. Describe your product idea in 1-3 sentences
+3. Review the AI-generated plan
+4. Reply with `APPROVE`, `REJECT`, or `REVISE: [feedback]`
+5. Watch the AI team build it!
+
+**Your control points:**
+| Command | What Happens |
+|---------|--------------|
+| `APPROVE` | Accept plan → AI team starts building |
+| `REJECT` | Cancel → No code written |
+| `REVISE: [feedback]` | Request changes → AI revises plan |
+
+📖 **[Full Orchestrator Guide](docs/AI_ORCHESTRATOR_GUIDE.md)**
+
+---
 
 ## 🤖 Meet the Team
 
 This project is developed by a team of specialized AI agents, each with specific responsibilities:
 
+- **🎯 Orchestrator Agent** - Coordinates autonomous workflow, handles approvals
 - **📋 Product Agent** - Requirements and planning
 - **⚙️ Backend Agent** - API and server-side development
 - **🔌 Integration Agent** - API clients and contracts
@@ -14,6 +43,7 @@ This project is developed by a team of specialized AI agents, each with specific
 
 ## 📚 Documentation
 
+- [**AI Orchestrator Guide**](docs/AI_ORCHESTRATOR_GUIDE.md) - Autonomous workflow guide
 - [**AI Team Guide**](docs/AI_TEAM_GUIDE.md) - Complete guide to the AI team workflow
 - [**API Documentation**](docs/API.md) - Backend API reference
 - [**Component Library**](docs/COMPONENTS.md) - Frontend components

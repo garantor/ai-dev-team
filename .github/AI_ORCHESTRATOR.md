@@ -1,7 +1,17 @@
 # 🤖 AI Orchestrator System
 
 ## Overview
-This system allows you to provide a simple high-level statement, and the AI agents will automatically break it down, plan, and execute the full implementation.
+This system allows you to provide a simple high-level statement, and the AI agents will automatically break it down, plan, and execute the full implementation. **The initial planning requires your approval, rejection, or revision request** before any implementation begins.
+
+## Key Feature: Human-in-the-Loop Control
+
+The Orchestrator Agent ensures you maintain full control over the autonomous workflow:
+
+| Command | Description | What Happens |
+|---------|-------------|--------------|
+| `APPROVE` | Accept the proposed plan | All agent issues are created and implementation begins |
+| `REJECT` | Cancel the orchestration | Workflow ends, no issues are created |
+| `REVISE: [feedback]` | Request changes | Product Agent revises the plan based on your feedback |
 
 ## How It Works
 
@@ -22,11 +32,28 @@ The Product Agent AI will automatically:
 5. Identify all required agents
 6. Post the full plan as a comment for your review
 
-### Step 3: Your Approval
-You review the plan and either:
-- ✅ Comment "APPROVE" to proceed
-- 🔄 Comment "REVISE: [your feedback]" to iterate
-- ❌ Comment "REJECT" to cancel
+### Step 3: Your Decision (APPROVE/REJECT/REVISE)
+You review the plan and respond with ONE command:
+
+**APPROVE** - Accept the plan and start implementation:
+```
+APPROVE
+```
+
+**REJECT** - Cancel the orchestration completely:
+```
+REJECT
+```
+
+**REVISE** - Request specific changes to the plan:
+```
+REVISE: Use Python instead of Node.js for the backend
+```
+```
+REVISE: Add more features for mobile responsiveness and reduce scope of analytics
+```
+
+After revision, a new plan will be posted and you can APPROVE, REJECT, or REVISE again.
 
 ### Step 4: Automatic Execution
 After approval, Product Agent automatically:

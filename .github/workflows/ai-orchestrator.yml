@@ -1,0 +1,363 @@
+# AI Orchestrator Workflow
+# Automates the orchestrator process for high-level product ideas
+# Handles plan generation, approval, rejection, and revision commands
+
+name: AI Orchestrator
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  # Analyze new orchestrator issues and generate initial plan
+  analyze-idea:
+    name: Generate Product Plan
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' && 
+      github.event.action == 'opened' && 
+      contains(github.event.issue.labels.*.name, 'orchestrator')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Add analyzing label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['analyzing']
+            });
+
+      - name: Comment - Analysis Started
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## 🤖 Product Agent Analysis Started
+            
+            I'm analyzing your product idea and will generate a detailed implementation plan.
+            
+            **Expected timeline:** Within 24 hours (or faster with GitHub Copilot)
+            
+            ---
+            
+            ### 📋 What I'm preparing:
+            - [ ] Project overview and scope
+            - [ ] Feature breakdown (P0/P1/P2)
+            - [ ] User stories with acceptance criteria
+            - [ ] Technical architecture
+            - [ ] Agent task assignments
+            - [ ] Implementation timeline
+            - [ ] GitHub issues to create
+            
+            ---
+            
+            ⏳ **Status:** Waiting for Product Agent to complete analysis
+            
+            > 💡 **Tip:** You can speed this up by using GitHub Copilot or ChatGPT with the Product Agent prompt from our [Orchestrator Guide](../docs/AI_ORCHESTRATOR_GUIDE.md)`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+  # Handle APPROVE command - create agent issues
+  handle-approval:
+    name: Handle Plan Approval
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.action == 'created' &&
+      contains(github.event.issue.labels.*.name, 'orchestrator') &&
+      contains(github.event.issue.labels.*.name, 'plan-ready') &&
+      startsWith(github.event.comment.body, 'APPROVE')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Remove plan-ready, add approved
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'plan-ready'
+            }).catch(() => {});
+            
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'needs-planning'
+            }).catch(() => {});
+            
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['approved', 'in-progress']
+            });
+
+      - name: Comment - Approval Acknowledged
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## ✅ Plan Approved!
+            
+            Thank you for approving the implementation plan.
+            
+            ### 🚀 Next Steps (Automated)
+            
+            1. **Creating agent issues** - Backend, Integration, Frontend, and QA tasks
+            2. **Setting up dependencies** - Linking issues in correct order
+            3. **Assigning labels** - Each agent will pick up their tasks
+            
+            ---
+            
+            ### 📋 Issue Creation Status
+            
+            | Agent | Status |
+            |-------|--------|
+            | 🏗️ Backend Agent | ⏳ Creating issues... |
+            | 🔌 Integration Agent | ⏳ Waiting... |
+            | 🎨 Frontend Agent | ⏳ Waiting... |
+            | 🧪 QA Agent | ⏳ Waiting... |
+            
+            ---
+            
+            ⏳ **Status:** Creating agent tasks...
+            
+            > 📝 Issues will be created based on the approved plan. Each agent will automatically start working on their assigned tasks.`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+  # Handle REJECT command - close the issue
+  handle-rejection:
+    name: Handle Plan Rejection
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.action == 'created' &&
+      contains(github.event.issue.labels.*.name, 'orchestrator') &&
+      startsWith(github.event.comment.body, 'REJECT')
+    steps:
+      - name: Update labels and close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Add rejected label
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['rejected']
+            });
+            
+            // Remove other status labels
+            const labelsToRemove = ['plan-ready', 'needs-planning', 'analyzing'];
+            for (const label of labelsToRemove) {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: label
+              }).catch(() => {});
+            }
+
+      - name: Comment - Rejection Acknowledged
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## ❌ Plan Rejected
+            
+            The implementation plan has been rejected and this orchestration has been cancelled.
+            
+            ---
+            
+            ### 📝 What now?
+            
+            - **Want to try again?** Create a new orchestrator issue with revised requirements
+            - **Need help?** Check our [AI Orchestrator Guide](../docs/AI_ORCHESTRATOR_GUIDE.md) for tips on effective prompts
+            - **Have questions?** Open a [Discussion](https://github.com/${context.repo.owner}/${context.repo.repo}/discussions)
+            
+            ---
+            
+            🚫 **Status:** Orchestration cancelled
+            
+            > This issue will remain open for reference. Close it manually if not needed.`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+  # Handle REVISE command - request plan changes
+  handle-revision:
+    name: Handle Plan Revision Request
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.action == 'created' &&
+      contains(github.event.issue.labels.*.name, 'orchestrator') &&
+      startsWith(github.event.comment.body, 'REVISE')
+    steps:
+      - name: Extract feedback
+        id: extract-feedback
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = context.payload.comment.body;
+            const feedback = comment.replace(/^REVISE:?\s*/i, '').trim();
+            core.setOutput('feedback', feedback || 'No specific feedback provided');
+            return feedback;
+          result-encoding: string
+
+      - name: Update labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Remove plan-ready if present, add needs-revision
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'plan-ready'
+            }).catch(() => {});
+            
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['needs-revision']
+            });
+
+      - name: Comment - Revision Requested
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const feedback = `${{ steps.extract-feedback.outputs.feedback }}`;
+            
+            const body = `## 🔄 Revision Requested
+            
+            Your feedback has been noted. The Product Agent will revise the plan accordingly.
+            
+            ---
+            
+            ### 📝 Your Feedback:
+            > ${feedback}
+            
+            ---
+            
+            ### ⏳ What's Next?
+            
+            1. Product Agent will analyze your feedback
+            2. A revised plan will be posted as a new comment
+            3. You can then APPROVE, REJECT, or REVISE again
+            
+            ---
+            
+            🔄 **Status:** Awaiting revised plan
+            
+            > 💡 **Tip:** Be specific about what you want changed - tech stack, features, timeline, etc.`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+  # Mark plan as ready when Product Agent posts plan
+  mark-plan-ready:
+    name: Mark Plan Ready for Review
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.action == 'created' &&
+      contains(github.event.issue.labels.*.name, 'orchestrator') &&
+      contains(github.event.comment.body, '## 🎯 PROJECT OVERVIEW') &&
+      contains(github.event.comment.body, '## ✅ APPROVAL REQUIRED')
+    steps:
+      - name: Update labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Remove analyzing label, add plan-ready
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'analyzing'
+            }).catch(() => {});
+            
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'needs-revision'
+            }).catch(() => {});
+            
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['plan-ready']
+            });
+
+      - name: Comment - Ready for Review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## 📋 Plan Ready for Review!
+            
+            The Product Agent has completed the implementation plan above.
+            
+            ---
+            
+            ### 🎮 Your Commands:
+            
+            | Command | Action |
+            |---------|--------|
+            | \`APPROVE\` | Accept the plan and start creating agent issues |
+            | \`REVISE: [your feedback]\` | Request changes to the plan |
+            | \`REJECT\` | Cancel this orchestration |
+            
+            ---
+            
+            **Example commands:**
+            - \`APPROVE\`
+            - \`REVISE: Use Python instead of Node.js for backend\`
+            - \`REVISE: Add more features for mobile responsiveness\`
+            - \`REJECT\`
+            
+            ---
+            
+            ⏳ **Status:** Awaiting your decision`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });

@@ -67,8 +67,11 @@ echo ""
     echo ""
     echo -e "${BLUE}Next steps:${NC}"
     echo "1. Wait for Product Agent to analyze (check issue comments)"
-    echo "2. Review the implementation plan"
-    echo "3. Comment 'APPROVE' to proceed"
+    echo "2. Review the implementation plan carefully"
+    echo "3. Respond with ONE of these commands:"
+    echo "   - APPROVE        → Accept plan and start implementation"
+    echo "   - REJECT         → Cancel this request"
+    echo "   - REVISE: [text] → Request specific changes"
     echo ""
 }
 
@@ -139,6 +142,42 @@ echo -e "${BLUE}Quick commands:${NC}"
     echo ""
 }
 
+# Function to respond to an orchestrator issue
+respond_to_issue() {
+    echo -e "${YELLOW}Enter the orchestrator issue number:${NC}"
+    read -p "Issue #: " ISSUE_NUM
+    
+    echo ""
+    echo -e "${YELLOW}What is your decision?${NC}"
+    echo "1) ✅ APPROVE - Accept the plan"
+    echo "2) ❌ REJECT - Cancel the orchestration"
+    echo "3) 🔄 REVISE - Request changes"
+    read -p "Select (1-3): " DECISION
+    
+    case $DECISION in
+        1) 
+            COMMENT="APPROVE"
+            ;;
+        2) 
+            COMMENT="REJECT"
+            ;;
+        3) 
+            echo -e "${YELLOW}What changes would you like?${NC}"
+            read -p "Feedback: " FEEDBACK
+            COMMENT="REVISE: $FEEDBACK"
+            ;;
+        *)
+            echo -e "${RED}Invalid option${NC}"
+            return
+            ;;
+    esac
+    
+    echo -e "${GREEN}Posting response...${NC}"
+    gh issue comment $ISSUE_NUM --body "$COMMENT" --repo garantor/ai-dev-team
+    echo -e "${GREEN}✓ Response posted: $COMMENT${NC}"
+    echo ""
+}
+
 # Main menu
 main_menu() {
     echo ""
@@ -146,21 +185,23 @@ main_menu() {
     echo ""
     echo "1) 🚀 Submit a new idea (create orchestrator issue)"
     echo "2) 🤖 Generate Product Agent analysis for existing issue"
-    echo "3) ✅ Approve plan and create agent issues"
-    echo "4) 📊 Check status of all orchestrator issues"
-    echo "5) ❌ Exit"
+    echo "3) 💬 Respond to a plan (APPROVE/REJECT/REVISE)"
+    echo "4) ✅ Manually create agent issues from approved plan"
+    echo "5) 📊 Check status of all orchestrator issues"
+    echo "6) ❌ Exit"
     echo ""
-    read -p "Select (1-5): " choice
+    read -p "Select (1-6): " choice
     
     case $choice in
         1) create_orchestrator_issue ;;
         2) analyze_with_ai ;;
-        3) approve_and_create ;;
-        4) 
+        3) respond_to_issue ;;
+        4) approve_and_create ;;
+        5) 
             echo -e "${GREEN}Fetching orchestrator issues...${NC}"
             gh issue list --label "orchestrator" --repo garantor/ai-dev-team
             ;;
-        5) 
+        6) 
             echo -e "${GREEN}Goodbye!${NC}"
             exit 0
             ;;

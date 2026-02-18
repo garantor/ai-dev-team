@@ -8,13 +8,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        ## 🤖 AI Orchestrator
+        ## 🤖 AI Orchestrator - Fully Autonomous Workflow
         
-        Submit your high-level product idea here. The Product Agent AI will automatically:
-        1. Break it down into detailed features
-        2. Create technical specifications
-        3. Generate implementation plan
-        4. Create issues for all agents
+        Submit your high-level product idea here. The AI team will automatically:
+        1. **Analyze** your idea and break it down into detailed features
+        2. **Plan** the technical architecture and implementation timeline
+        3. **Present** the plan for your approval (you have full control!)
+        4. **Execute** by creating and assigning all agent issues after approval
         
         **All you need is one sentence describing what you want to build!**
 
@@ -63,7 +63,7 @@ body:
       options:
         - label: "I understand the Product Agent will analyze this and post a detailed plan for my approval"
           required: true
-        - label: "I will review the plan and comment APPROVE to proceed with implementation"
+        - label: "I will review the plan and respond with APPROVE, REJECT, or REVISE"
           required: true
 
   - type: markdown
@@ -71,15 +71,45 @@ body:
       value: |
         ---
         
-        ## 🔄 What Happens Next?
+        ## 🔄 Autonomous Workflow - What Happens Next?
         
-        1. **Product Agent** will analyze your idea (within 24 hours)
-        2. You'll receive a detailed plan as a comment
-        3. Review the plan and comment:
-           - `APPROVE` to proceed
-           - `REVISE: [your feedback]` to iterate
-           - `REJECT` to cancel
-        4. After approval, all issues will be automatically created
-        5. Agents will start implementing
+        ### Step 1: Analysis (Automatic)
+        The **Product Agent** will analyze your idea and post a detailed implementation plan including:
+        - Feature breakdown (P0/P1/P2 priorities)
+        - Technical architecture
+        - Agent task assignments
+        - Implementation timeline
         
-        **Read more:** [AI Orchestrator Guide](../AI_ORCHESTRATOR.md)
+        ### Step 2: Your Decision (Required)
+        Review the plan and respond with ONE of these commands:
+        
+        | Command | What It Does |
+        |---------|--------------|
+        | `APPROVE` | ✅ Accept the plan → All agent issues are created automatically |
+        | `REJECT` | ❌ Cancel this request → No issues created, workflow ends |
+        | `REVISE: [feedback]` | 🔄 Request changes → Product Agent revises the plan |
+        
+        **Examples:**
+        - `APPROVE` - Accept and start implementation
+        - `REVISE: Use Python instead of Node.js` - Change tech stack
+        - `REVISE: Add payment processing feature` - Add requirements
+        - `REJECT` - Cancel this orchestration
+        
+        ### Step 3: Execution (Automatic after APPROVE)
+        After you APPROVE:
+        1. ✅ Backend Agent issues created
+        2. ✅ Integration Agent issues created  
+        3. ✅ Frontend Agent issues created
+        4. ✅ QA Agent issues created
+        5. ✅ Dependencies linked between issues
+        6. ✅ Agents start implementing automatically
+        
+        ### Step 4: Review & Merge (Your Involvement)
+        You only need to:
+        - Review and merge Pull Requests
+        - Test the final product
+        - Provide feedback if needed
+        
+        ---
+        
+        **Read more:** [AI Orchestrator Guide](../docs/AI_ORCHESTRATOR_GUIDE.md)

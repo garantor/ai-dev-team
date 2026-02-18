@@ -8,6 +8,22 @@ The AI Orchestrator system allows you to **submit a single sentence** describing
 
 **AI delivers:** Full implementation with code, tests, and documentation ✅
 
+### 🔐 Human Control: Approval Workflow
+
+**Initial planning requires YOUR approval before any implementation begins.** You have full control with three commands:
+
+| Command | Action | Result |
+|---------|--------|--------|
+| `APPROVE` | Accept the plan | All agent issues created, implementation starts |
+| `REJECT` | Cancel everything | Workflow ends, no code written |
+| `REVISE: [feedback]` | Request changes | Product Agent updates the plan |
+
+This ensures you can:
+- ✅ Review all proposed features before coding begins
+- ✅ Request changes to tech stack, scope, or timeline
+- ✅ Cancel projects that don't fit your vision
+- ✅ Iterate on plans until they're perfect
+
 ---
 
 ## 🚀 Quick Start (3 Steps)
@@ -27,7 +43,7 @@ The AI Orchestrator system allows you to **submit a single sentence** describing
 ⚡ Priority: 🚀 High (this week)
 ```
 
-### Step 2: Review the Plan (5 minutes)
+### Step 2: Review the Plan and Decide (5 minutes)
 
 Within 24 hours, **Product Agent AI** comments with:
 - Full feature breakdown
@@ -35,12 +51,27 @@ Within 24 hours, **Product Agent AI** comments with:
 - Implementation timeline
 - All GitHub issues ready to create
 
-**You just review and comment:**
+**Your Decision Options:**
+
+✅ **APPROVE** - Accept the plan and start implementation:
 ```
 APPROVE
 ```
 
-### Step 3: Watch It Get Built (Automatic)
+🔄 **REVISE** - Request specific changes:
+```
+REVISE: Use Python instead of Node.js for the backend
+```
+```
+REVISE: Add payment processing and reduce scope of analytics features
+```
+
+❌ **REJECT** - Cancel this request completely:
+```
+REJECT
+```
+
+### Step 3: Watch It Get Built (Automatic after APPROVE)
 
 After approval:
 - ✅ All issues automatically created
