@@ -1,0 +1,85 @@
+name: "🚀 AI Orchestrator"
+description: "Submit a high-level idea and let AI agents plan and implement it"
+title: "[ORCHESTRATE] "
+labels: ["orchestrator", "needs-planning"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🤖 AI Orchestrator
+        
+        Submit your high-level product idea here. The Product Agent AI will automatically:
+        1. Break it down into detailed features
+        2. Create technical specifications
+        3. Generate implementation plan
+        4. Create issues for all agents
+        
+        **All you need is one sentence describing what you want to build!**
+
+  - type: textarea
+    id: product-idea
+    attributes:
+      label: "💡 Your Product Idea"
+      description: "Describe what you want to build in 1-3 sentences"
+      placeholder: |
+        Example: "I want to create a web app that integrates with Uniswap for blockchain swapping"
+        
+        Example: "Build a task management app with real-time collaboration and AI-powered suggestions"
+        
+        Example: "Create a social media dashboard that aggregates posts from Twitter, Instagram, and LinkedIn"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "📝 Additional Context (Optional)"
+      description: "Any specific requirements, constraints, or preferences?"
+      placeholder: |
+        - Target users: Crypto traders
+        - Must support: MetaMask, WalletConnect
+        - Budget: $10k
+        - Timeline: 4 weeks
+        - Preferred tech: React, Node.js
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "⚡ Priority"
+      options:
+        - "🔥 Urgent (start immediately)"
+        - "🚀 High (this week)"
+        - "📅 Medium (this month)"
+        - "💭 Low (exploratory)"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: "✅ Confirmation"
+      options:
+        - label: "I understand the Product Agent will analyze this and post a detailed plan for my approval"
+          required: true
+        - label: "I will review the plan and comment APPROVE to proceed with implementation"
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## 🔄 What Happens Next?
+        
+        1. **Product Agent** will analyze your idea (within 24 hours)
+        2. You'll receive a detailed plan as a comment
+        3. Review the plan and comment:
+           - `APPROVE` to proceed
+           - `REVISE: [your feedback]` to iterate
+           - `REJECT` to cancel
+        4. After approval, all issues will be automatically created
+        5. Agents will start implementing
+        
+        **Read more:** [AI Orchestrator Guide](../AI_ORCHESTRATOR.md)
