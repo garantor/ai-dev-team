@@ -87,6 +87,39 @@ REVISE: Make it simpler, focus only on core features
 
 ---
 
+## ⏱️ Expected Response Times
+
+| Action | Response Time | What You'll See |
+|--------|---------------|-----------------|
+| Submit orchestrator issue | **10 seconds** | Acknowledgment comment posted |
+| Plan generation | **3-5 minutes** | Detailed implementation plan |
+| Approve plan | **2 minutes** | All agent issues created |
+| Agent coordination | **Instant** | Agents triggered when ready |
+
+### Why does plan generation take time?
+
+AI needs to:
+- Analyze your product requirements
+- Design technical architecture
+- Create detailed user stories
+- Break down into agent-specific tasks
+- Generate timeline and dependencies
+
+This comprehensive analysis takes 3-5 minutes but saves weeks of planning!
+
+### What you'll see immediately
+
+When you submit an orchestrator issue, you'll receive an **instant acknowledgment** within 10 seconds:
+- ✅ Confirmation message that your request was received
+- 🚀 Rocket emoji reaction on your issue
+- 🏷️ `processing` label added
+- ⏰ Timestamp showing when processing started
+- 📋 Clear explanation of what's happening next
+
+This instant feedback ensures you know the automation is working and sets clear expectations for the next steps.
+
+---
+
 ## 💡 Example: Full Workflow
 
 ### Your Input
