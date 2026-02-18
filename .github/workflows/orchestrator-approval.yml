@@ -93,26 +93,23 @@ jobs:
             
             // Post confirmation comment
             const commenter = context.payload.comment.user.login;
+            const body = `## ✅ Plan Approved!\n\n` +
+              `Thank you for approving the plan, @${commenter}!\n\n` +
+              `**Next steps:**\n` +
+              `1. 🤖 Automated issue creation is starting...\n` +
+              `2. 📝 All agent issues will be created with proper dependencies\n` +
+              `3. 🔗 Issues will be linked back to this orchestrator issue\n` +
+              `4. 🚀 Agents will be notified to start work\n\n` +
+              `**Track progress:**\n` +
+              `- All created issues will be commented below\n` +
+              `- Daily progress reports will be posted automatically\n` +
+              `- You can check status anytime with the orchestrator dashboard\n\n` +
+              `⏳ Please wait 1-2 minutes for issue creation to complete...`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue_number,
-              body: `## ✅ Plan Approved!
-
-          Thank you for approving the plan, @${commenter}!
-
-          **Next steps:**
-          1. 🤖 Automated issue creation is starting...
-          2. 📝 All agent issues will be created with proper dependencies
-          3. 🔗 Issues will be linked back to this orchestrator issue
-          4. 🚀 Agents will be notified to start work
-
-          **Track progress:**
-          - All created issues will be commented below
-          - Daily progress reports will be posted automatically
-          - You can check status anytime with the orchestrator dashboard
-
-          ⏳ Please wait 1-2 minutes for issue creation to complete...`
+              body: body
             });
 
       - name: Handle REVISE
@@ -124,20 +121,18 @@ jobs:
             const commenter = context.payload.comment.user.login;
             
             // Post acknowledgment comment
+            const body = `## 🔄 Revision Requested\n\n` +
+              `Thank you for the feedback, @${commenter}!\n\n` +
+              `**Status:**\n` +
+              `- ✅ Revision request received\n` +
+              `- 🤖 Product Agent is regenerating the plan\n` +
+              `- ⏳ New plan will be posted shortly (1-2 minutes)\n\n` +
+              `The revised plan will incorporate your feedback and be posted as a new comment for your review.`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue_number,
-              body: `## 🔄 Revision Requested
-
-          Thank you for the feedback, @${commenter}!
-
-          **Status:**
-          - ✅ Revision request received
-          - 🤖 Product Agent is regenerating the plan
-          - ⏳ New plan will be posted shortly (1-2 minutes)
-
-          The revised plan will incorporate your feedback and be posted as a new comment for your review.`
+              body: body
             });
             
             // The orchestrator-analyze workflow will handle the actual revision
@@ -168,21 +163,18 @@ jobs:
             
             // Post thank you comment
             const commenter = context.payload.comment.user.login;
+            const body = `## ❌ Orchestration Cancelled\n\n` +
+              `Thank you for your consideration, @${commenter}.\n\n` +
+              `This orchestration request has been cancelled. No issues will be created.\n\n` +
+              `**If you change your mind:**\n` +
+              `- You can reopen this issue\n` +
+              `- Or create a new orchestrator issue with an updated idea\n\n` +
+              `Thank you for using the AI Dev Team! 🚀`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue_number,
-              body: `## ❌ Orchestration Cancelled
-
-          Thank you for your consideration, @${commenter}.
-
-          This orchestration request has been cancelled. No issues will be created.
-
-          **If you change your mind:**
-          - You can reopen this issue
-          - Or create a new orchestrator issue with an updated idea
-
-          Thank you for using the AI Dev Team! 🚀`
+              body: body
             });
             
             // Close the issue
