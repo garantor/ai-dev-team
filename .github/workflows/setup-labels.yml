@@ -1,0 +1,97 @@
+name: Setup Repository Labels
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/labels.yml'
+
+jobs:
+  setup-labels:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              // Orchestrator Labels
+              { name: 'orchestrator', color: '8B5CF6', description: 'AI Orchestrator issue - automated product planning' },
+              { name: 'needs-planning', color: 'FCD34D', description: 'Awaiting Product Agent analysis' },
+              { name: 'awaiting-approval', color: 'FB923C', description: 'Plan generated, waiting for user approval' },
+              { name: 'approved', color: '10B981', description: 'Plan approved, ready for implementation' },
+              { name: 'processing', color: '3B82F6', description: 'Currently being processed by automation' },
+              { name: 'creating-issues', color: '6366F1', description: 'Automatically creating agent issues' },
+              { name: 'rejected', color: 'EF4444', description: 'Request rejected by user' },
+              
+              // Agent Labels
+              { name: 'product', color: '8B5CF6', description: 'Product Agent - requirements and planning' },
+              { name: 'backend', color: 'DC2626', description: 'Backend Agent - API and server-side logic' },
+              { name: 'frontend', color: '2563EB', description: 'Frontend Agent - UI components and client-side' },
+              { name: 'integration', color: '059669', description: 'Integration Agent - API clients and contracts' },
+              { name: 'qa', color: 'D97706', description: 'QA Agent - testing and quality assurance' },
+              
+              // Priority Labels
+              { name: 'P0', color: 'DC2626', description: '🔥 Critical priority - start immediately' },
+              { name: 'P1', color: 'F59E0B', description: '🚀 High priority - this week' },
+              { name: 'P2', color: '3B82F6', description: '📅 Medium priority - this month' },
+              { name: 'P3', color: '6B7280', description: '💭 Low priority - exploratory' },
+              
+              // Status Labels
+              { name: 'blocked', color: 'DC2626', description: 'Blocked by dependencies' },
+              { name: 'ready', color: '10B981', description: 'Ready to start work' },
+              { name: 'in-progress', color: 'FBBF24', description: 'Work in progress' },
+              { name: 'in-review', color: '8B5CF6', description: 'In code review' },
+              { name: 'done', color: '059669', description: 'Completed' },
+              
+              // Type Labels
+              { name: 'feature', color: '10B981', description: 'New feature request' },
+              { name: 'bug', color: 'DC2626', description: 'Bug report' },
+              { name: 'enhancement', color: '3B82F6', description: 'Enhancement to existing feature' },
+              { name: 'documentation', color: '6B7280', description: 'Documentation updates' },
+            ];
+
+            for (const label of labels) {
+              try {
+                // Try to get the label
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name
+                });
+                
+                // If it exists, update it
+                console.log(`Updating label: ${label.name}`);
+                await github.rest.issues.updateLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description
+                });
+              } catch (error) {
+                if (error.status === 404) {
+                  // Label doesn't exist, create it
+                  console.log(`Creating label: ${label.name}`);
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description
+                  });
+                } else {
+                  console.error(`Error processing label ${label.name}:`, error);
+                }
+              }
+            }
+
+            console.log('✅ All labels created/updated successfully!');
