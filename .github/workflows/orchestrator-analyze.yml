@@ -5,6 +5,12 @@ on:
     types: [opened, labeled]
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to analyze (for manual testing)'
+        required: true
+        type: number
 
 permissions:
   issues: write
@@ -12,28 +18,96 @@ permissions:
 
 # Prevent concurrent runs for the same issue - coordinate with acknowledge workflow
 concurrency:
-  group: orchestrator-${{ github.event.issue.number }}
+  group: orchestrator-${{ github.event.issue.number || github.event.inputs.issue_number }}
   cancel-in-progress: false
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    # Only run on orchestrator issues with needs-planning label
+    # Basic filter - actual label validation happens in the first step
+    # to ensure we check CURRENT labels, not stale event payload labels
     if: |
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issues' && 
-       contains(github.event.issue.labels.*.name, 'orchestrator') && 
-       contains(github.event.issue.labels.*.name, 'needs-planning') &&
-       contains(github.event.issue.labels.*.name, 'processing')) ||
+       contains(github.event.issue.labels.*.name, 'orchestrator')) ||
       (github.event_name == 'issue_comment' && 
        contains(github.event.issue.labels.*.name, 'orchestrator') && 
-       contains(github.event.issue.labels.*.name, 'awaiting-approval') &&
        startsWith(github.event.comment.body, 'REVISE:'))
     
     steps:
+      - name: Check current labels
+        id: check_labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get issue number from event or workflow_dispatch input
+            const issueNumber = context.issue?.number || 
+              (context.payload.inputs && parseInt(context.payload.inputs.issue_number));
+            
+            if (!issueNumber) {
+              core.setFailed('No issue number found');
+              return;
+            }
+            
+            console.log(`Checking issue #${issueNumber}`);
+            
+            // Fetch current issue state from API (not stale event payload)
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            
+            const labels = issue.data.labels.map(l => l.name);
+            const hasOrchestrator = labels.includes('orchestrator');
+            const hasNeedsPlanning = labels.includes('needs-planning');
+            const hasProcessing = labels.includes('processing');
+            const hasAwaitingApproval = labels.includes('awaiting-approval');
+            
+            let shouldRun = false;
+            let reason = '';
+            
+            if (context.eventName === 'workflow_dispatch') {
+              // For manual dispatch, same rules as issues event
+              shouldRun = hasOrchestrator && hasNeedsPlanning && hasProcessing;
+              reason = shouldRun ? 'Issue has required labels (manual dispatch)' : 
+                `Missing labels: orchestrator=${hasOrchestrator}, needs-planning=${hasNeedsPlanning}, processing=${hasProcessing}`;
+            } else if (context.eventName === 'issues') {
+              // For issue events, need orchestrator + needs-planning + processing
+              shouldRun = hasOrchestrator && hasNeedsPlanning && hasProcessing;
+              reason = shouldRun ? 'Issue has required labels' : 
+                `Missing labels: orchestrator=${hasOrchestrator}, needs-planning=${hasNeedsPlanning}, processing=${hasProcessing}`;
+            } else if (context.eventName === 'issue_comment') {
+              // For REVISE comments, need orchestrator + awaiting-approval
+              const comment = context.payload.comment.body || '';
+              const isRevise = comment.trim().toUpperCase().startsWith('REVISE:');
+              shouldRun = hasOrchestrator && hasAwaitingApproval && isRevise;
+              reason = shouldRun ? 'Valid REVISE request' : 
+                `Not a valid REVISE request: orchestrator=${hasOrchestrator}, awaiting-approval=${hasAwaitingApproval}, isRevise=${isRevise}`;
+            }
+            
+            console.log(`Labels: ${labels.join(', ')}`);
+            console.log(`Should run: ${shouldRun}`);
+            console.log(`Reason: ${reason}`);
+            
+            // Store issue number for later steps
+            core.setOutput('issue_number', issueNumber);
+            core.setOutput('should_run', shouldRun);
+            core.setOutput('reason', reason);
+            return shouldRun;
+
+      - name: Skip if conditions not met
+        if: steps.check_labels.outputs.should_run != 'true'
+        run: |
+          echo "⏭️ Skipping workflow: ${{ steps.check_labels.outputs.reason }}"
+          echo "This is expected if the workflow was triggered before all labels were applied."
+
       - name: Checkout repository
+        if: steps.check_labels.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
       - name: Extract issue details
+        if: steps.check_labels.outputs.should_run == 'true'
         id: extract
         uses: actions/github-script@v7
         with:
@@ -80,7 +154,7 @@ jobs:
 
       - name: Get previous plan for revision
         id: get_previous_plan
-        if: steps.extract.outputs.is_revision == 'true'
+        if: steps.check_labels.outputs.should_run == 'true' && steps.extract.outputs.is_revision == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -105,6 +179,7 @@ jobs:
             return previousPlan;
 
       - name: Generate plan with AI
+        if: steps.check_labels.outputs.should_run == 'true'
         id: generate_plan
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
@@ -321,6 +396,7 @@ jobs:
           echo "✅ Plan generated successfully" >> $GITHUB_STEP_SUMMARY
 
       - name: Post plan as comment
+        if: steps.check_labels.outputs.should_run == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -343,41 +419,45 @@ jobs:
               const version = planCount + 1;
               
               const username = context.payload.comment.user.login;
-              commentBody = `# 🔄 Revised Plan v${version}
-
-          **Revision requested by:** @${username}
-
-          ---
-
-          ${plan}
-
-          ---
-
-          ## ✅ APPROVAL REQUIRED
-
-          Please review this revised plan and comment:
-          - \`APPROVE\` to proceed with creating all issues
-          - \`REVISE: [your feedback]\` to request more changes
-          - \`REJECT\` to cancel this orchestration`;
+              commentBody = [
+                `# 🔄 Revised Plan v${version}`,
+                '',
+                `_Revision requested by:_ @${username}`,
+                '',
+                '---',
+                '',
+                plan,
+                '',
+                '---',
+                '',
+                '## ✅ APPROVAL REQUIRED',
+                '',
+                'Please review this revised plan and comment:',
+                '- `APPROVE` to proceed with creating all issues',
+                '- `REVISE: [your feedback]` to request more changes',
+                '- `REJECT` to cancel this orchestration'
+              ].join('\n');
             } else {
-              commentBody = `# 📋 Product Agent Analysis
-
-          Thank you for submitting your idea! Here's the comprehensive implementation plan:
-
-          ---
-
-          ${plan}
-
-          ---
-
-          ## ✅ APPROVAL REQUIRED
-
-          Please review this plan and comment:
-          - \`APPROVE\` to proceed with creating all issues
-          - \`REVISE: [your feedback]\` to request changes
-          - \`REJECT\` to cancel this orchestration
-
-          Once approved, all issues will be automatically created with proper dependencies and labels.`;
+              commentBody = [
+                '# 📋 Product Agent Analysis',
+                '',
+                'Thank you for submitting your idea! Here is the comprehensive implementation plan:',
+                '',
+                '---',
+                '',
+                plan,
+                '',
+                '---',
+                '',
+                '## ✅ APPROVAL REQUIRED',
+                '',
+                'Please review this plan and comment:',
+                '- `APPROVE` to proceed with creating all issues',
+                '- `REVISE: [your feedback]` to request changes',
+                '- `REJECT` to cancel this orchestration',
+                '',
+                'Once approved, all issues will be automatically created with proper dependencies and labels.'
+              ].join('\n');
             }
             
             await github.rest.issues.createComment({
@@ -388,7 +468,7 @@ jobs:
             });
 
       - name: Update issue labels
-        if: steps.extract.outputs.is_revision == 'false'
+        if: steps.check_labels.outputs.should_run == 'true' && steps.extract.outputs.is_revision == 'false'
         uses: actions/github-script@v7
         with:
           script: |
