@@ -26,7 +26,7 @@ The automation system consists of 5 GitHub Actions workflows:
 
 **What it does:**
 1. Extracts product idea from issue body
-2. Calls OpenAI API (or provides fallback template)
+2. Calls Google Gemini API (or provides fallback template)
 3. Generates comprehensive plan with:
    - Project overview
    - Features breakdown (P0/P1/P2)
@@ -39,7 +39,7 @@ The automation system consists of 5 GitHub Actions workflows:
 5. Updates labels: `needs-planning` → `awaiting-approval`
 
 **Environment Variables:**
-- `OPENAI_API_KEY` (optional): OpenAI API key for automated plan generation
+- `GOOGLE_API_KEY` (optional): Google Gemini API key for automated plan generation
 - `GITHUB_TOKEN` (automatic): GitHub API access
 
 **Fallback:** If no API key configured, provides instructions for manual planning
@@ -286,22 +286,44 @@ When all issues are closed:
 
 ### Required Secrets
 
-#### `OPENAI_API_KEY` (Recommended)
-For automated plan generation.
+#### `GOOGLE_API_KEY` (Recommended)
+For automated plan generation using Google Gemini API.
 
 **To add:**
-1. Go to repository Settings
-2. Secrets and variables → Actions
-3. New repository secret
-4. Name: `OPENAI_API_KEY`
-5. Value: Your OpenAI API key (starts with `sk-`)
+1. Go to https://makersuite.google.com/app/apikey
+2. Create a new API key
+3. Copy the key (starts with `AIza...`)
+4. Go to repository Settings
+5. Secrets and variables → Actions
+6. New repository secret
+7. Name: `GOOGLE_API_KEY`
+8. Value: Your Google Gemini API key
 
-**Cost:** ~$0.10-0.50 per plan generation (using GPT-4)
+**Via GitHub CLI:**
+```bash
+gh secret set GOOGLE_API_KEY --repo garantor/ai-dev-team
+# Paste your API key when prompted
+```
+
+**Cost:** Free tier includes 60 requests per minute
+
+**Verify Setup:**
+```bash
+# Test your API key locally
+export GOOGLE_API_KEY='your-api-key'
+./scripts/validate-api-key.sh
+```
 
 **Without this secret:**
 - Workflows still run
 - Provides manual planning instructions
-- You copy/paste from ChatGPT yourself
+- You copy/paste from ChatGPT/Claude yourself
+
+**Alternative: OpenAI API**
+If you prefer OpenAI instead:
+1. Get API key from https://platform.openai.com/api-keys
+2. Modify `.github/workflows/orchestrator-analyze.yml` to use OpenAI API
+3. Add `OPENAI_API_KEY` secret instead
 
 #### `GITHUB_TOKEN` (Automatic)
 Automatically provided by GitHub Actions. No configuration needed.
@@ -324,10 +346,23 @@ on:
 #### Change AI Model
 Edit `.github/workflows/orchestrator-analyze.yml`:
 
+```bash
+# Current: Google Gemini Pro
+RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$GOOGLE_API_KEY" ...)
+
+# To use other Gemini models:
+# gemini-pro-vision - For image analysis
+# gemini-ultra - Most capable (when available)
+```
+
+**Generation Config:**
 ```yaml
-"model": "gpt-4-turbo-preview",  # GPT-4 Turbo (best quality)
-# Change to: "gpt-4"  # GPT-4 (more reliable)
-# Or: "gpt-3.5-turbo-16k"  # Cheaper, faster, good enough
+generationConfig: {
+  temperature: 0.7,      # 0.0-1.0: Lower = more focused, Higher = more creative
+  topK: 40,              # Consider top 40 tokens
+  topP: 0.95,            # Nucleus sampling
+  maxOutputTokens: 8192  # Max response length
+}
 ```
 
 #### Adjust Rate Limiting
@@ -383,15 +418,18 @@ await new Promise(resolve => setTimeout(resolve, 500));
 **Symptoms:** Issue created but no plan comment after 5 minutes
 
 **Causes:**
-1. `OPENAI_API_KEY` not configured
+1. `GOOGLE_API_KEY` not configured
 2. Workflow disabled
-3. API error
+3. API error or quota exceeded
 
 **Solutions:**
 1. Check Actions tab for workflow runs and errors
-2. Configure `OPENAI_API_KEY` in repository secrets
-3. Check workflow logs for detailed error messages
-4. Use manual planning fallback (comment with ChatGPT response)
+2. Configure `GOOGLE_API_KEY` in repository secrets
+   - Get key from https://makersuite.google.com/app/apikey
+3. Test key: `GOOGLE_API_KEY='your-key' ./scripts/validate-api-key.sh`
+4. Check workflow logs for detailed error messages
+5. Verify Gemini API is enabled for your project
+6. Use manual planning fallback (comment with ChatGPT response)
 
 ### Issues not created after approval
 
@@ -502,7 +540,7 @@ await new Promise(resolve => setTimeout(resolve, 500));
 ### For Administrators
 
 **DO:**
-✅ Configure `OPENAI_API_KEY` for best experience
+✅ Configure `GOOGLE_API_KEY` for best experience
 ✅ Monitor workflow execution regularly
 ✅ Review failed workflow runs
 ✅ Keep workflows up to date

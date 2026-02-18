@@ -262,11 +262,26 @@ See [AI Team Guide](docs/AI_TEAM_GUIDE.md) for detailed workflows.
 
 ### For Automated Plan Generation
 
-Add `OPENAI_API_KEY` to repository secrets:
-1. Go to Settings → Secrets and variables → Actions
-2. New repository secret
-3. Name: `OPENAI_API_KEY`
-4. Value: Your OpenAI API key
+Add `GOOGLE_API_KEY` to repository secrets:
+
+**Via GitHub UI:**
+1. Get your API key from https://makersuite.google.com/app/apikey
+2. Go to **Settings → Secrets and variables → Actions**
+3. Click **"New repository secret"**
+4. Name: `GOOGLE_API_KEY`
+5. Value: Your Gemini API key
+
+**Via GitHub CLI:**
+```bash
+gh secret set GOOGLE_API_KEY --repo garantor/ai-dev-team
+# Paste your API key when prompted
+```
+
+**Test your API key:**
+```bash
+export GOOGLE_API_KEY='your-api-key'
+./scripts/validate-api-key.sh
+```
 
 Without this, manual planning instructions will be provided.
 
