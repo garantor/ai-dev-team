@@ -1,0 +1,380 @@
+name: Orchestrator - Analyze and Generate Plan
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    # Only run on orchestrator issues with needs-planning label
+    if: |
+      (github.event_name == 'issues' && 
+       contains(github.event.issue.labels.*.name, 'orchestrator') && 
+       contains(github.event.issue.labels.*.name, 'needs-planning')) ||
+      (github.event_name == 'issue_comment' && 
+       contains(github.event.issue.labels.*.name, 'orchestrator') && 
+       contains(github.event.issue.labels.*.name, 'awaiting-approval') &&
+       startsWith(github.event.comment.body, 'REVISE:'))
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract issue details
+        id: extract
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || '';
+            
+            // Extract product idea from issue body
+            const ideaMatch = body.match(/### 💡 Your Product Idea\s+([\s\S]*?)(?=###|$)/i) ||
+                             body.match(/## 💡 Product Idea\s+([\s\S]*?)(?=##|$)/i);
+            const productIdea = ideaMatch ? ideaMatch[1].trim() : body;
+            
+            // Extract additional context
+            const contextMatch = body.match(/### 📝 Additional Context.*?\s+([\s\S]*?)(?=###|$)/i) ||
+                                body.match(/## 📝 Additional Context\s+([\s\S]*?)(?=##|$)/i);
+            const additionalContext = contextMatch ? contextMatch[1].trim() : '';
+            
+            // Extract priority
+            const priorityMatch = body.match(/### ⚡ Priority\s+([\s\S]*?)(?=###|$)/i) ||
+                                 body.match(/## ⚡ Priority\s+([\s\S]*?)(?=##|$)/i);
+            const priority = priorityMatch ? priorityMatch[1].trim() : 'Medium';
+            
+            // Check if this is a revision
+            let revisionFeedback = '';
+            if (context.eventName === 'issue_comment') {
+              const comment = context.payload.comment.body;
+              const reviseMatch = comment.match(/REVISE:\s*([\s\S]*)/i);
+              revisionFeedback = reviseMatch ? reviseMatch[1].trim() : '';
+            }
+            
+            core.setOutput('product_idea', productIdea);
+            core.setOutput('additional_context', additionalContext);
+            core.setOutput('priority', priority);
+            core.setOutput('revision_feedback', revisionFeedback);
+            core.setOutput('is_revision', revisionFeedback !== '');
+            
+            return {
+              productIdea,
+              additionalContext,
+              priority,
+              revisionFeedback,
+              isRevision: revisionFeedback !== ''
+            };
+
+      - name: Get previous plan for revision
+        id: get_previous_plan
+        if: steps.extract.outputs.is_revision == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.issue.number;
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number
+            });
+            
+            // Find the most recent plan (look for "## 🎯 PROJECT OVERVIEW" or similar)
+            const planComments = comments.data.filter(c => 
+              c.body.includes('## 🎯 PROJECT OVERVIEW') || 
+              c.body.includes('## 📊 PRODUCT PLAN') ||
+              c.body.includes('GITHUB ISSUES TO CREATE')
+            );
+            
+            const previousPlan = planComments.length > 0 ? 
+              planComments[planComments.length - 1].body : '';
+            
+            core.setOutput('previous_plan', previousPlan);
+            return previousPlan;
+
+      - name: Generate plan with AI
+        id: generate_plan
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create the AI prompt
+          PRODUCT_IDEA="${{ steps.extract.outputs.product_idea }}"
+          ADDITIONAL_CONTEXT="${{ steps.extract.outputs.additional_context }}"
+          PRIORITY="${{ steps.extract.outputs.priority }}"
+          IS_REVISION="${{ steps.extract.outputs.is_revision }}"
+          REVISION_FEEDBACK="${{ steps.extract.outputs.revision_feedback }}"
+          PREVIOUS_PLAN="${{ steps.get_previous_plan.outputs.previous_plan }}"
+          
+          # Build the prompt
+          if [ "$IS_REVISION" = "true" ]; then
+            PROMPT="You are a Product Agent AI for an automated development team.
+
+          A user has requested revisions to a previous plan.
+
+          ORIGINAL PRODUCT IDEA:
+          $PRODUCT_IDEA
+
+          ADDITIONAL CONTEXT:
+          $ADDITIONAL_CONTEXT
+
+          PREVIOUS PLAN:
+          $PREVIOUS_PLAN
+
+          REVISION FEEDBACK:
+          $REVISION_FEEDBACK
+
+          Generate an IMPROVED plan incorporating the feedback. Keep the same structure but address the concerns."
+          else
+            PROMPT="You are a Product Agent AI for an automated development team.
+
+          A user submitted this product idea:
+
+          PRODUCT IDEA:
+          $PRODUCT_IDEA
+
+          ADDITIONAL CONTEXT:
+          $ADDITIONAL_CONTEXT
+
+          PRIORITY:
+          $PRIORITY
+
+          Generate a comprehensive implementation plan with the following sections (use exactly these headers):
+
+          ## 🎯 PROJECT OVERVIEW
+          - Summary (one sentence)
+          - Target users
+          - Core value proposition
+
+          ## ✨ FEATURES BREAKDOWN
+          ### P0 - Must Have
+          (List critical features)
+          
+          ### P1 - Should Have
+          (List important features)
+          
+          ### P2 - Nice to Have
+          (List optional features)
+
+          ## 📖 USER STORIES
+          For each major feature, provide:
+          - As a [user type], I want [goal] so that [benefit]
+          - Acceptance Criteria (as checklist items)
+
+          ## 🏗️ TECHNICAL ARCHITECTURE
+          - Tech Stack (specific technologies)
+          - System Architecture (ASCII diagram)
+          - Database Schema (if needed)
+          - API Endpoints (if applicable)
+
+          ## 👥 AGENT TASK BREAKDOWN
+          ### Backend Agent Tasks
+          (List specific backend implementation tasks)
+          
+          ### Integration Agent Tasks
+          (List API client and integration tasks)
+          
+          ### Frontend Agent Tasks
+          (List UI/UX implementation tasks)
+          
+          ### QA Agent Tasks
+          (List testing and quality assurance tasks)
+
+          ## 📅 IMPLEMENTATION TIMELINE
+          Break down into phases (Week 1, Week 2, etc.)
+
+          ## 📝 GITHUB ISSUES TO CREATE
+          For each issue, provide:
+          - Issue title (format: [AGENT-TYPE] Description)
+          - Template to use
+          - Labels
+          - Parent issue (if applicable)
+          - Dependencies (which issues must be completed first)
+          - Full description with deliverables
+
+          Format the entire response as structured markdown that can be directly posted to GitHub."
+          fi
+          
+          # Check if OpenAI API key is available
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "⚠️ OPENAI_API_KEY not configured. Using fallback template-based plan." >> $GITHUB_STEP_SUMMARY
+            
+            # Create a template-based plan
+            PLAN="## 🎯 PROJECT OVERVIEW
+
+          **Summary:** $PRODUCT_IDEA
+
+          **Target Users:** To be determined based on product requirements
+
+          **Value Proposition:** Automated implementation using AI agent team
+
+          ---
+
+          ## ⚠️ Manual Planning Required
+
+          The automated AI plan generation requires an OpenAI API key to be configured in repository secrets.
+
+          **To enable automated planning:**
+          1. Go to repository Settings > Secrets and variables > Actions
+          2. Add a secret named \`OPENAI_API_KEY\` with your OpenAI API key
+          3. Close this issue and create a new one to trigger automated planning
+
+          **Alternative options:**
+          1. **Use ChatGPT/Claude manually:**
+             - Copy the product idea above
+             - Paste into ChatGPT with the Product Agent prompt from [AI_ORCHESTRATOR_GUIDE.md](../docs/AI_ORCHESTRATOR_GUIDE.md)
+             - Post the AI response as a comment on this issue
+             - Comment \`APPROVE\` when ready
+
+          2. **Use GitHub Copilot:**
+             - Open this issue in VS Code
+             - Use Copilot Chat: \`@workspace analyze this issue and create implementation plan\`
+             - Copy the response and post as a comment
+
+          3. **Manual planning:**
+             - Review the issue templates
+             - Create issues manually for each agent
+
+          ---
+
+          ## 📝 NEXT STEPS
+
+          Once you have a complete plan (either from AI or manual), post it as a comment and then comment:
+          - \`APPROVE\` to proceed with issue creation
+          - \`REVISE: [feedback]\` to request changes
+          - \`REJECT\` to cancel"
+          else
+            # Call OpenAI API
+            RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $OPENAI_API_KEY" \
+              -d "{
+                \"model\": \"gpt-4-turbo-preview\",
+                \"messages\": [
+                  {
+                    \"role\": \"system\",
+                    \"content\": \"You are a Product Agent AI specialized in breaking down product ideas into detailed implementation plans for a team of specialized AI agents (Backend, Integration, Frontend, QA). Always be thorough and provide actionable tasks.\"
+                  },
+                  {
+                    \"role\": \"user\",
+                    \"content\": $(echo "$PROMPT" | jq -Rs .)
+                  }
+                ],
+                \"temperature\": 0.7,
+                \"max_tokens\": 4000
+              }")
+            
+            # Check for API errors
+            if echo "$RESPONSE" | jq -e '.error' > /dev/null; then
+              ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message')
+              echo "❌ OpenAI API Error: $ERROR_MSG" >> $GITHUB_STEP_SUMMARY
+              
+              PLAN="## ⚠️ API Error
+
+          Failed to generate plan automatically: $ERROR_MSG
+
+          Please use one of the manual options described in the [AI Orchestrator Guide](../docs/AI_ORCHESTRATOR_GUIDE.md)."
+            else
+              # Extract the generated plan
+              PLAN=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+            fi
+          fi
+          
+          # Save plan to file for next step
+          echo "$PLAN" > /tmp/generated_plan.md
+          
+          # Output summary
+          echo "✅ Plan generated successfully" >> $GITHUB_STEP_SUMMARY
+
+      - name: Post plan as comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('/tmp/generated_plan.md', 'utf8');
+            const isRevision = '${{ steps.extract.outputs.is_revision }}' === 'true';
+            
+            let commentBody = '';
+            if (isRevision) {
+              // Get the version number
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number
+              });
+              const planCount = comments.data.filter(c => 
+                c.body.includes('## 🎯 PROJECT OVERVIEW') || 
+                c.body.includes('Revised Plan v')
+              ).length;
+              const version = planCount + 1;
+              
+              const username = context.payload.comment.user.login;
+              commentBody = `# 🔄 Revised Plan v${version}
+
+          **Revision requested by:** @${username}
+
+          ---
+
+          ${plan}
+
+          ---
+
+          ## ✅ APPROVAL REQUIRED
+
+          Please review this revised plan and comment:
+          - \`APPROVE\` to proceed with creating all issues
+          - \`REVISE: [your feedback]\` to request more changes
+          - \`REJECT\` to cancel this orchestration`;
+            } else {
+              commentBody = `# 📋 Product Agent Analysis
+
+          Thank you for submitting your idea! Here's the comprehensive implementation plan:
+
+          ---
+
+          ${plan}
+
+          ---
+
+          ## ✅ APPROVAL REQUIRED
+
+          Please review this plan and comment:
+          - \`APPROVE\` to proceed with creating all issues
+          - \`REVISE: [your feedback]\` to request changes
+          - \`REJECT\` to cancel this orchestration
+
+          Once approved, all issues will be automatically created with proper dependencies and labels.`;
+            }
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });
+
+      - name: Update issue labels
+        if: steps.extract.outputs.is_revision == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Remove needs-planning, add awaiting-approval
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'needs-planning'
+            }).catch(() => {}); // Ignore if label doesn't exist
+            
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['awaiting-approval']
+            });
