@@ -40,10 +40,27 @@ This project is developed by a team of specialized AI agents, each with specific
 ## 📚 Documentation
 
 - [**🤖 Automation Guide**](docs/AUTOMATION.md) - **NEW!** How the autonomous system works
+- [**🏷️ Labels Guide**](docs/LABELS.md) - Complete guide to repository labels
 - [**AI Orchestrator Guide**](docs/AI_ORCHESTRATOR_GUIDE.md) - Submit ideas and get implementations
 - [**AI Team Guide**](docs/AI_TEAM_GUIDE.md) - Complete guide to the AI team workflow
 
 ## 🚀 Quick Start
+
+### 🏷️ Labels Setup (First Time Only)
+
+Before using the orchestrator, ensure labels are set up:
+
+```bash
+# Automatic (via GitHub Actions)
+gh workflow run setup-labels.yml --repo garantor/ai-dev-team
+
+# Or manual (via script)
+./scripts/setup-labels.sh
+```
+
+View all labels: [github.com/garantor/ai-dev-team/labels](https://github.com/garantor/ai-dev-team/labels)
+
+See the [Labels Guide](docs/LABELS.md) for details on each label.
 
 ### Automated Orchestration (Recommended)
 
