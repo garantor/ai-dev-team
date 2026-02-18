@@ -1,0 +1,462 @@
+name: Agent Coordinator
+
+on:
+  issues:
+    types: [closed, labeled, unlabeled]
+  pull_request:
+    types: [opened, closed]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  coordinate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Handle issue closed (dependency resolution)
+        if: github.event_name == 'issues' && github.event.action == 'closed'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const closedIssue = context.payload.issue.number;
+            
+            console.log(`Issue #${closedIssue} was closed. Checking for dependent issues...`);
+            
+            // Find all open issues that depend on this issue
+            const { data: allIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+            
+            const dependentIssues = allIssues.filter(issue => {
+              const body = issue.body || '';
+              // Check if this issue depends on the closed issue
+              const dependsPattern = new RegExp(`Depends on:.*#${closedIssue}\\b`, 'i');
+              return dependsPattern.test(body);
+            });
+            
+            console.log(`Found ${dependentIssues.length} dependent issues`);
+            
+            for (const issue of dependentIssues) {
+              const body = issue.body || '';
+              
+              // Extract all dependencies
+              const depsMatch = body.match(/Depends on:\s*([^\n]+)/i);
+              if (!depsMatch) continue;
+              
+              const deps = depsMatch[1].match(/#(\d+)/g).map(d => parseInt(d.replace('#', '')));
+              
+              // Check if all dependencies are closed
+              let allDepsClosed = true;
+              const depStatuses = [];
+              
+              for (const dep of deps) {
+                try {
+                  const { data: depIssue } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: dep
+                  });
+                  
+                  depStatuses.push({
+                    number: dep,
+                    closed: depIssue.state === 'closed'
+                  });
+                  
+                  if (depIssue.state !== 'closed') {
+                    allDepsClosed = false;
+                  }
+                } catch (error) {
+                  console.log(`Could not check dependency #${dep}: ${error.message}`);
+                }
+              }
+              
+              if (allDepsClosed) {
+                console.log(`All dependencies resolved for issue #${issue.number}. Unblocking...`);
+                
+                // Remove blocked label
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: 'blocked'
+                  });
+                } catch (error) {
+                  console.log(`Label 'blocked' not found on issue #${issue.number}`);
+                }
+                
+                // Add ready label
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  labels: ['ready']
+                });
+                
+                // Determine agent type from labels
+                const agentLabels = ['backend', 'frontend', 'integration', 'qa'];
+                const agentType = issue.labels.find(l => agentLabels.includes(l.name))?.name || 'agent';
+                
+                // Comment to notify
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `## 🎉 Dependencies Resolved!
+
+            All dependencies for this issue have been completed:
+            ${depStatuses.map(d => `- ✅ #${d.number}`).join('\n')}
+
+            This issue is now **ready to start**.
+
+            **@copilot** This ${agentType} issue is ready for implementation. Please follow the ${agentType} agent guidelines and implement the requirements.`
+                });
+              } else {
+                console.log(`Issue #${issue.number} still has open dependencies:`, 
+                  depStatuses.filter(d => !d.closed).map(d => d.number));
+              }
+            }
+            
+            // Update progress on parent orchestrator issue
+            await updateOrchestratorProgress(github, context, closedIssue);
+
+      - name: Handle issue labeled as ready (trigger agent)
+        if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'ready'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const issueNumber = issue.number;
+            
+            // Determine agent type
+            const agentLabels = {
+              'backend': {
+                emoji: '⚙️',
+                name: 'Backend Agent',
+                focus: 'API endpoints, database models, business logic'
+              },
+              'frontend': {
+                emoji: '🎨',
+                name: 'Frontend Agent',
+                focus: 'UI components, user interactions, styling'
+              },
+              'integration': {
+                emoji: '🔌',
+                name: 'Integration Agent',
+                focus: 'API clients, type definitions, service integration'
+              },
+              'qa': {
+                emoji: '🧪',
+                name: 'QA Agent',
+                focus: 'test scenarios, test automation, quality assurance'
+              }
+            };
+            
+            let agentType = null;
+            let agentInfo = null;
+            
+            for (const label of issue.labels) {
+              if (agentLabels[label.name]) {
+                agentType = label.name;
+                agentInfo = agentLabels[label.name];
+                break;
+              }
+            }
+            
+            if (!agentType) {
+              console.log('No agent type found for issue');
+              return;
+            }
+            
+            // Post agent-specific instructions
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `## ${agentInfo.emoji} ${agentInfo.name} - Ready to Start!
+
+            This issue is now ready for implementation.
+
+            **Your focus areas:**
+            - ${agentInfo.focus}
+
+            **Implementation checklist:**
+            - [ ] Read the issue requirements carefully
+            - [ ] Review any related issues or dependencies
+            - [ ] Implement the functionality
+            - [ ] Write comprehensive tests
+            - [ ] Update relevant documentation
+            - [ ] Open a Pull Request following the PR template
+            - [ ] Link the PR to this issue
+
+            **@copilot** Please implement this ${agentType} task following best practices and the repository guidelines.
+
+            **Guidelines:** See [\`.github/copilot-instructions.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/.github/copilot-instructions.md) for ${agentType} agent specifications.`
+            });
+
+      - name: Handle PR opened
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const prBody = pr.body || '';
+            
+            // Extract linked issues from PR body
+            const issueMatches = prBody.match(/#(\d+)/g);
+            if (!issueMatches) {
+              console.log('No issues linked in PR');
+              return;
+            }
+            
+            for (const match of issueMatches) {
+              const issueNumber = parseInt(match.replace('#', ''));
+              
+              try {
+                // Add in-review label to the issue
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  labels: ['in-review']
+                });
+                
+                // Remove ready label if present
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  name: 'ready'
+                }).catch(() => {});
+                
+                // Comment on the issue
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: `## 🔄 Pull Request Opened
+
+            A pull request has been opened for this issue:
+            - PR #${pr.number}: ${pr.title}
+            - Link: ${pr.html_url}
+
+            **Status:** In Review
+
+            Please review the changes and provide feedback.`
+                });
+              } catch (error) {
+                console.log(`Error updating issue #${issueNumber}: ${error.message}`);
+              }
+            }
+
+      - name: Handle PR merged
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const prBody = pr.body || '';
+            
+            // Extract linked issues
+            const issueMatches = prBody.match(/#(\d+)/g);
+            if (!issueMatches) {
+              console.log('No issues linked in PR');
+              return;
+            }
+            
+            for (const match of issueMatches) {
+              const issueNumber = parseInt(match.replace('#', ''));
+              
+              try {
+                // Close the issue
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'closed'
+                });
+                
+                // Comment on the issue
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: `## ✅ Completed
+
+            This issue has been completed and merged:
+            - PR #${pr.number}: ${pr.title}
+            - Merged by: @${pr.merged_by.login}
+
+            **Status:** Done
+
+            Thank you for the contribution! 🎉`
+                });
+              } catch (error) {
+                console.log(`Error closing issue #${issueNumber}: ${error.message}`);
+              }
+            }
+
+      - name: Inter-agent communication
+        if: github.event_name == 'issues' && github.event.action == 'closed'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const closedIssue = context.payload.issue;
+            const closedNumber = closedIssue.number;
+            const closedLabels = closedIssue.labels.map(l => l.name);
+            
+            // Communication patterns
+            const communications = {
+              'backend': ['integration', 'qa'],
+              'integration': ['frontend', 'qa'],
+              'frontend': ['qa']
+            };
+            
+            // Find agent type of closed issue
+            let agentType = null;
+            for (const label of closedLabels) {
+              if (communications[label]) {
+                agentType = label;
+                break;
+              }
+            }
+            
+            if (!agentType) {
+              console.log('No agent communication needed');
+              return;
+            }
+            
+            // Find related issues to notify
+            const nextAgents = communications[agentType];
+            
+            // Get all open issues with parent reference
+            const { data: allIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+            
+            // Find issues for next agents that reference the same parent
+            const parentMatch = (closedIssue.body || '').match(/Parent Issue:\s*#(\d+)/i);
+            const parentIssue = parentMatch ? parseInt(parentMatch[1]) : null;
+            
+            if (!parentIssue) {
+              console.log('No parent issue found');
+              return;
+            }
+            
+            for (const issue of allIssues) {
+              const issueBody = issue.body || '';
+              const issueLabels = issue.labels.map(l => l.name);
+              
+              // Check if this issue is for one of the next agents and shares the same parent
+              const isNextAgent = nextAgents.some(agent => issueLabels.includes(agent));
+              const sameParent = issueBody.includes(`Parent Issue: #${parentIssue}`);
+              
+              if (isNextAgent && sameParent) {
+                const agentName = nextAgents.find(agent => issueLabels.includes(agent));
+                
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `## 📢 Upstream Dependency Completed
+
+            The ${agentType} work has been completed:
+            - ✅ #${closedNumber} - ${closedIssue.title}
+
+            **Impact on this issue:**
+            - You may now have new APIs/clients/components available
+            - Check the PR for implementation details
+            - Ensure your work integrates correctly with the completed work
+
+            ${issueLabels.includes('ready') ? '**This issue is ready to start!** @copilot please begin implementation.' : ''}`
+                });
+              }
+            }
+
+# Helper function to update orchestrator progress
+async function updateOrchestratorProgress(github, context, closedIssueNumber) {
+  try {
+    // Get the closed issue to find parent
+    const { data: closedIssue } = await github.rest.issues.get({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      issue_number: closedIssueNumber
+    });
+    
+    const parentMatch = (closedIssue.body || '').match(/Parent Issue:\s*#(\d+)/i);
+    if (!parentMatch) {
+      console.log('No parent orchestrator issue found');
+      return;
+    }
+    
+    const orchestratorNumber = parseInt(parentMatch[1]);
+    
+    // Get all issues linked to this orchestrator
+    const { data: allIssues } = await github.rest.issues.listForRepo({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      state: 'all',
+      per_page: 100
+    });
+    
+    const linkedIssues = allIssues.filter(issue => {
+      const body = issue.body || '';
+      return body.includes(`Parent Issue: #${orchestratorNumber}`) && 
+             issue.number !== orchestratorNumber;
+    });
+    
+    const totalIssues = linkedIssues.length;
+    const completedIssues = linkedIssues.filter(i => i.state === 'closed').length;
+    const progress = totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0;
+    
+    // Update orchestrator issue title with progress
+    const { data: orchestrator } = await github.rest.issues.get({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      issue_number: orchestratorNumber
+    });
+    
+    const newTitle = orchestrator.title.replace(/\s*\[\d+\/\d+\]\s*$/, '') + 
+                     ` [${completedIssues}/${totalIssues}]`;
+    
+    await github.rest.issues.update({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      issue_number: orchestratorNumber,
+      title: newTitle
+    });
+    
+    // If all issues are complete, add a completion comment
+    if (completedIssues === totalIssues && totalIssues > 0) {
+      await github.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: orchestratorNumber,
+        body: `## 🎉 All Issues Completed!
+
+**Congratulations!** All ${totalIssues} issues have been successfully completed.
+
+**Final Status:**
+- ✅ Completed: ${completedIssues}/${totalIssues} (100%)
+
+**Next Steps:**
+1. Test the complete implementation
+2. Deploy to production
+3. Close this orchestrator issue when satisfied
+
+Thank you for using the AI Dev Team! 🚀`
+      });
+    }
+  } catch (error) {
+    console.log(`Error updating orchestrator progress: ${error.message}`);
+  }
+}

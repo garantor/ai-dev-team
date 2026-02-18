@@ -1,0 +1,365 @@
+name: Orchestrator - Create Issues
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  create_issues:
+    runs-on: ubuntu-latest
+    # Only run when creating-issues label is added to orchestrator issue
+    if: |
+      contains(github.event.issue.labels.*.name, 'orchestrator') &&
+      contains(github.event.issue.labels.*.name, 'creating-issues') &&
+      github.event.label.name == 'creating-issues'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract approved plan from comments
+        id: extract_plan
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.issue.number;
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number
+            });
+            
+            // Find the most recent plan comment
+            const planComments = comments.data.filter(c => 
+              c.body.includes('## 🎯 PROJECT OVERVIEW') || 
+              c.body.includes('## 📝 GITHUB ISSUES TO CREATE')
+            );
+            
+            if (planComments.length === 0) {
+              core.setFailed('No plan found in comments');
+              return;
+            }
+            
+            const latestPlan = planComments[planComments.length - 1].body;
+            
+            // Save plan to file for parsing
+            const fs = require('fs');
+            fs.writeFileSync('/tmp/approved_plan.md', latestPlan);
+            
+            core.setOutput('plan_found', 'true');
+            return latestPlan;
+
+      - name: Parse issues from plan
+        id: parse_issues
+        run: |
+          # This is a simplified parser. In production, you'd use a more robust solution
+          # For now, we'll create a structured approach to parse the markdown
+          
+          cat > /tmp/parse_issues.js << 'EOFPARSER'
+          const fs = require('fs');
+          
+          function parseIssuesFromPlan(planText) {
+            const issues = [];
+            
+            // Find the GITHUB ISSUES section
+            const issuesSection = planText.match(/## 📝 GITHUB ISSUES TO CREATE\s+([\s\S]*?)(?=##|$)/i);
+            if (!issuesSection) {
+              console.log('Warning: No GITHUB ISSUES section found. Will attempt to extract from agent tasks.');
+              return parseFromAgentTasks(planText);
+            }
+            
+            const issuesText = issuesSection[1];
+            
+            // Split by issue headers (### Issue #)
+            const issueBlocks = issuesText.split(/### Issue #\d+:/);
+            
+            for (let i = 1; i < issueBlocks.length; i++) {
+              const block = issueBlocks[i].trim();
+              
+              // Extract title
+              const titleMatch = block.match(/^\[([^\]]+)\]\s+(.+)/);
+              if (!titleMatch) continue;
+              
+              const agentType = titleMatch[1];
+              const title = titleMatch[2].split('\n')[0].trim();
+              
+              // Extract labels
+              const labelsMatch = block.match(/\*\*Labels:\*\*\s+(.+)/i);
+              const labels = labelsMatch ? 
+                labelsMatch[1].split(',').map(l => l.trim()) : 
+                [agentType.toLowerCase()];
+              
+              // Extract parent
+              const parentMatch = block.match(/\*\*Parent:\*\*\s+#(\d+)/i);
+              const parent = parentMatch ? parseInt(parentMatch[1]) : null;
+              
+              // Extract dependencies
+              const depsMatch = block.match(/\*\*Depends on:\*\*\s+(.+)/i);
+              const dependencies = depsMatch ?
+                depsMatch[1].match(/#\d+/g).map(d => parseInt(d.replace('#', ''))) :
+                [];
+              
+              // Extract description (everything after the metadata)
+              const descMatch = block.match(/\*\*Description:\*\*\s+([\s\S]+?)(?=###|$)/i) ||
+                               block.match(/\*\*Deliverables:\*\*\s+([\s\S]+?)(?=###|$)/i);
+              let description = descMatch ? descMatch[1].trim() : block;
+              
+              // Clean up description
+              description = description.replace(/\*\*[^*]+:\*\*[^\n]*\n?/g, '').trim();
+              
+              issues.push({
+                title: `[${agentType}] ${title}`,
+                agentType: agentType.toLowerCase(),
+                labels: labels,
+                parent: parent,
+                dependencies: dependencies,
+                description: description
+              });
+            }
+            
+            return issues;
+          }
+          
+          function parseFromAgentTasks(planText) {
+            // Fallback: try to extract from agent task sections
+            const issues = [];
+            const sections = [
+              'Backend Agent Tasks',
+              'Integration Agent Tasks',
+              'Frontend Agent Tasks',
+              'QA Agent Tasks'
+            ];
+            
+            sections.forEach(section => {
+              const sectionMatch = planText.match(new RegExp(`### ${section}\\s+([\\s\\S]*?)(?=###|##|$)`, 'i'));
+              if (sectionMatch) {
+                const tasks = sectionMatch[1];
+                const taskMatches = tasks.matchAll(/[-*]\s+\*\*([^*]+)\*\*:?\s+([^\n]+)/g);
+                
+                for (const match of taskMatches) {
+                  const taskName = match[1].trim();
+                  const description = match[2].trim();
+                  const agentType = section.split(' ')[0].toLowerCase();
+                  
+                  issues.push({
+                    title: `[${section.split(' ')[0].toUpperCase()}] ${taskName}`,
+                    agentType: agentType,
+                    labels: [agentType, 'P0'],
+                    parent: null,
+                    dependencies: [],
+                    description: description
+                  });
+                }
+              }
+            });
+            
+            return issues;
+          }
+          
+          // Read the plan
+          const planText = fs.readFileSync('/tmp/approved_plan.md', 'utf8');
+          const issues = parseIssuesFromPlan(planText);
+          
+          // Write issues to JSON file
+          fs.writeFileSync('/tmp/parsed_issues.json', JSON.stringify(issues, null, 2));
+          
+          console.log(`Parsed ${issues.length} issues`);
+          console.log(JSON.stringify(issues, null, 2));
+          EOFPARSER
+          
+          node /tmp/parse_issues.js
+          
+          # Set output
+          ISSUE_COUNT=$(cat /tmp/parsed_issues.json | jq 'length')
+          echo "issue_count=$ISSUE_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub issues
+        id: create_issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const parsedIssues = JSON.parse(fs.readFileSync('/tmp/parsed_issues.json', 'utf8'));
+            const orchestratorNumber = context.issue.number;
+            
+            console.log(`Creating ${parsedIssues.length} issues...`);
+            
+            const createdIssues = [];
+            const issueMapping = {}; // Map original issue numbers to created issue numbers
+            
+            // Create issues in order
+            for (const issueData of parsedIssues) {
+              try {
+                // Build the issue body
+                let body = issueData.description;
+                
+                // Add parent reference
+                body += `\n\n---\n\n**Parent Issue:** #${orchestratorNumber}`;
+                
+                // Add dependencies if any
+                if (issueData.dependencies && issueData.dependencies.length > 0) {
+                  const mappedDeps = issueData.dependencies
+                    .map(dep => issueMapping[dep] || dep)
+                    .filter(dep => dep);
+                  
+                  if (mappedDeps.length > 0) {
+                    body += `\n**Depends on:** ${mappedDeps.map(d => `#${d}`).join(', ')}`;
+                    body += `\n\n⚠️ This issue is blocked until the dependencies are resolved.`;
+                  }
+                }
+                
+                // Add agent instructions
+                body += `\n\n---\n\n**@copilot** Please implement this ${issueData.agentType} task following the ${issueData.agentType} agent guidelines.`;
+                
+                // Determine initial labels
+                let labels = [...issueData.labels];
+                if (issueData.dependencies && issueData.dependencies.length > 0) {
+                  labels.push('blocked');
+                } else {
+                  labels.push('ready');
+                }
+                
+                // Create the issue
+                const issue = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: issueData.title,
+                  body: body,
+                  labels: labels
+                });
+                
+                console.log(`Created issue #${issue.data.number}: ${issueData.title}`);
+                
+                createdIssues.push({
+                  number: issue.data.number,
+                  title: issueData.title,
+                  url: issue.data.html_url,
+                  agentType: issueData.agentType,
+                  status: issueData.dependencies?.length > 0 ? 'blocked' : 'ready'
+                });
+                
+                // Update mapping
+                if (issueData.parent) {
+                  issueMapping[issueData.parent] = issue.data.number;
+                }
+                
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+              } catch (error) {
+                console.error(`Error creating issue: ${error.message}`);
+              }
+            }
+            
+            // Save created issues for summary
+            fs.writeFileSync('/tmp/created_issues.json', JSON.stringify(createdIssues, null, 2));
+            
+            return createdIssues;
+
+      - name: Post summary to orchestrator issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const createdIssues = JSON.parse(fs.readFileSync('/tmp/created_issues.json', 'utf8'));
+            const orchestratorNumber = context.issue.number;
+            
+            // Group issues by agent type
+            const byAgent = {};
+            createdIssues.forEach(issue => {
+              if (!byAgent[issue.agentType]) {
+                byAgent[issue.agentType] = [];
+              }
+              byAgent[issue.agentType].push(issue);
+            });
+            
+            // Build summary
+            let summary = `## 🎉 Issues Created Successfully!\n\n`;
+            summary += `**Total Issues:** ${createdIssues.length}\n\n`;
+            
+            // Add breakdown by agent
+            for (const [agentType, issues] of Object.entries(byAgent)) {
+              const agentEmoji = {
+                'backend': '⚙️',
+                'integration': '🔌',
+                'frontend': '🎨',
+                'qa': '🧪',
+                'product': '📋'
+              }[agentType] || '📝';
+              
+              summary += `### ${agentEmoji} ${agentType.charAt(0).toUpperCase() + agentType.slice(1)} Agent Issues\n\n`;
+              
+              issues.forEach(issue => {
+                const statusEmoji = issue.status === 'ready' ? '🟢' : '🔴';
+                summary += `- ${statusEmoji} #${issue.number} - ${issue.title.replace(`[${agentType.toUpperCase()}] `, '')}\n`;
+              });
+              summary += '\n';
+            }
+            
+            summary += `---\n\n`;
+            summary += `## 📊 Status Overview\n\n`;
+            const readyCount = createdIssues.filter(i => i.status === 'ready').length;
+            const blockedCount = createdIssues.filter(i => i.status === 'blocked').length;
+            
+            summary += `- 🟢 **Ready to start:** ${readyCount} issues\n`;
+            summary += `- 🔴 **Blocked (waiting for dependencies):** ${blockedCount} issues\n\n`;
+            
+            summary += `---\n\n`;
+            summary += `## 🚀 Next Steps\n\n`;
+            summary += `1. Agents will automatically start working on ready issues\n`;
+            summary += `2. As issues are completed, blocked issues will become unblocked\n`;
+            summary += `3. Daily progress reports will be posted here\n`;
+            summary += `4. Review and merge PRs as they're created\n\n`;
+            
+            summary += `**Track all issues:** [View Project Board](/${context.repo.owner}/${context.repo.repo}/issues?q=is:issue+is:open+label:orchestrator)\n`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: orchestratorNumber,
+              body: summary
+            });
+
+      - name: Update orchestrator labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.issue.number;
+            
+            // Remove creating-issues, add in-progress
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              name: 'creating-issues'
+            }).catch(() => {});
+            
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              labels: ['in-progress']
+            });
+            
+            // Update issue title with progress
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number
+            });
+            
+            const fs = require('fs');
+            const createdIssues = JSON.parse(fs.readFileSync('/tmp/created_issues.json', 'utf8'));
+            
+            const newTitle = issue.data.title.replace(/\s*\[.*?\]\s*$/, '') + ` [0/${createdIssues.length}]`;
+            
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              title: newTitle
+            });
