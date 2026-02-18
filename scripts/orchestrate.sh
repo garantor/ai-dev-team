@@ -360,7 +360,7 @@ analyze_with_ai() {
     echo "No manual AI prompting needed! 🎉"
     echo ""
     echo -e "${BLUE}If automation is not working:${NC}"
-    echo "1. Check if OpenAI API key is configured in repo secrets"
+    echo "1. Check if Google Gemini API key (GOOGLE_API_KEY) is configured in repo secrets"
     echo "2. View the issue to see workflow status"
     echo "3. Or use manual ChatGPT method (see docs)"
     echo ""

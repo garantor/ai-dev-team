@@ -48,7 +48,7 @@ The AI Orchestrator system allows you to **submit a single sentence** describing
 ### Step 2: Review the Plan (2-5 minutes)
 
 **🤖 Automated!** Within 1-2 minutes, **GitHub Actions** automatically:
-- Calls AI (OpenAI GPT-4) to analyze your idea
+- Calls AI (Google Gemini) to analyze your idea
 - Generates comprehensive plan
 - Posts plan as comment on your issue
 - Full feature breakdown
@@ -527,7 +527,7 @@ APPROVE
 4. **Watch progress** - Daily reports posted automatically
 
 **Requirements:**
-- `OPENAI_API_KEY` configured in repository secrets (recommended)
+- `GOOGLE_API_KEY` configured in repository secrets (recommended)
 - Or use manual fallback if no API key
 
 [📖 **Automation setup guide →**](AUTOMATION.md)
@@ -664,10 +664,10 @@ Create a backend for a fitness tracking app with workout plans and progress trac
 ## 🔧 Troubleshooting
 
 **Q: Plan not generated after 5 minutes**
-- A: Check Actions tab for workflow status. If `OPENAI_API_KEY` not configured, manual instructions will be provided. [See automation guide](AUTOMATION.md#troubleshooting)
+- A: Check Actions tab for workflow status. If `GOOGLE_API_KEY` not configured, manual instructions will be provided. [See automation guide](AUTOMATION.md#troubleshooting)
 
 **Q: Product Agent hasn't responded (no API key)**
-- A: Use manual ChatGPT method above, or configure `OPENAI_API_KEY` in repository secrets
+- A: Use manual ChatGPT method above, or configure `GOOGLE_API_KEY` in repository secrets. Get key from https://makersuite.google.com/app/apikey
 
 **Q: The plan is too complex/simple**
 - A: Comment `REVISE: Make it simpler` or `REVISE: Add more features`
