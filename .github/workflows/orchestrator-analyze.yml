@@ -226,60 +226,49 @@ jobs:
           PRIORITY:
           $PRIORITY
 
-          Generate a comprehensive implementation plan with the following sections (use exactly these headers):
+          Generate a comprehensive, high-quality implementation plan with the following sections (use EXACTLY these headers):
 
           ## 🎯 PROJECT OVERVIEW
-          - Summary (one sentence)
-          - Target users
-          - Core value proposition
+          - **Summary**: (One sentence summary)
+          - **Target users**: (Specific audience)
+          - **Core value proposition**: (Key benefits)
 
           ## ✨ FEATURES BREAKDOWN
+          Use a table format for each priority level:
+          | Feature | Description | Priority |
+          | :--- | :--- | :--- |
+          | Feature Name | Short description | P0/P1/P2 |
+
           ### P0 - Must Have
-          (List critical features)
-          
           ### P1 - Should Have
-          (List important features)
-          
           ### P2 - Nice to Have
-          (List optional features)
 
           ## 📖 USER STORIES
           For each major feature, provide:
-          - As a [user type], I want [goal] so that [benefit]
-          - Acceptance Criteria (as checklist items)
+          - **Story**: As a [user type], I want [goal] so that [benefit]
+          - **Acceptance Criteria**: (As a markdown checklist)
 
           ## 🏗️ TECHNICAL ARCHITECTURE
-          - Tech Stack (specific technologies)
-          - System Architecture (ASCII diagram)
-          - Database Schema (if needed)
-          - API Endpoints (if applicable)
+          - **Tech Stack**: (Bullet points of specific technologies)
+          - **System Architecture**: (High-quality ASCII diagram)
+          - **Schema & API**: (Detailed markdown tables)
 
           ## 👥 AGENT TASK BREAKDOWN
-          ### Backend Agent Tasks
-          (List specific backend implementation tasks)
-          
-          ### Integration Agent Tasks
-          (List API client and integration tasks)
-          
-          ### Frontend Agent Tasks
-          (List UI/UX implementation tasks)
-          
-          ### QA Agent Tasks
-          (List testing and quality assurance tasks)
+          Break down tasks for: **Backend**, **Integration**, **Frontend**, and **QA**.
+          Use markdown tables showing:
+          | Task | Description | Agent |
+          | :--- | :--- | :--- |
 
           ## 📅 IMPLEMENTATION TIMELINE
-          Break down into phases (Week 1, Week 2, etc.)
+          Break down into clearly labeled phases (e.g., Week 1, Week 2).
 
           ## 📝 GITHUB ISSUES TO CREATE
-          For each issue, provide:
-          - Issue title (format: [AGENT-TYPE] Description)
-          - Template to use
-          - Labels
-          - Parent issue (if applicable)
-          - Dependencies (which issues must be completed first)
-          - Full description with deliverables
+          For each issue, provide a markdown block with:
+          - **Title**: [AGENT-TYPE] Description
+          - **Labels**: (e.g., backend, chore, enhancement)
+          - **Description**: Detailed deliverable checklist.
 
-          Format the entire response as structured markdown that can be directly posted to GitHub."
+          Format the entire response as PREMIUM structured markdown that looks professional on GitHub."
           fi
           
           # Check if Google API key is available
@@ -430,6 +419,14 @@ jobs:
                 '',
                 '---',
                 '',
+                '## 📋 QUICK ACTIONS',
+                '',
+                '- [ ] **APPROVE** (Create all agent issues)',
+                '- [ ] **REVISE** (I will provide feedback in a comment below)',
+                '- [ ] **REJECT** (Cancel this request)',
+                '',
+                '---',
+                '',
                 '## ✅ APPROVAL REQUIRED',
                 '',
                 'Please review this revised plan and comment:',
@@ -446,6 +443,14 @@ jobs:
                 '---',
                 '',
                 plan,
+                '',
+                '---',
+                '',
+                '## 📋 QUICK ACTIONS',
+                '',
+                '- [ ] **APPROVE** (Create all agent issues)',
+                '- [ ] **REVISE** (I will provide feedback below)',
+                '- [ ] **REJECT** (Cancel this request)',
                 '',
                 '---',
                 '',

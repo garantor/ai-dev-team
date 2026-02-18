@@ -19,54 +19,97 @@ echo -e "${YELLOW}AI Dev Team Local Simulation${NC}"
 echo "--------------------------------"
 
 if [ -z "$1" ]; then
-    read -p "Enter your product idea: " IDEA
+    read -p "Enter your product idea: " PRODUCT_IDEA
 else
-    IDEA="$1"
+    PRODUCT_IDEA="$1"
 fi
 
-if [ -z "$IDEA" ]; then
+if [ -z "$PRODUCT_IDEA" ]; then
     echo -e "${RED}Error: Idea cannot be empty${NC}"
     exit 1
 fi
 
-PROMPT="You are a Product Agent AI for an automated development team.
+ADDITIONAL_CONTEXT="N/A (Local Simulation)"
+PRIORITY="High"
+IS_REVISION="false"
+
+# Build the prompt
+if [ "$IS_REVISION" = "true" ]; then
+    PROMPT="You are a Product Agent AI for an automated development team.
+
+A user has requested revisions to a previous plan.
+
+ORIGINAL PRODUCT IDEA:
+$PRODUCT_IDEA
+
+ADDITIONAL CONTEXT:
+$ADDITIONAL_CONTEXT
+
+PREVIOUS PLAN:
+$PREVIOUS_PLAN
+
+REVISION FEEDBACK:
+$REVISION_FEEDBACK
+
+Generate an IMPROVED plan incorporating the feedback. Keep the same PREMIUM structure but address the concerns."
+else
+    PROMPT="You are a Product Agent AI for an automated development team.
 
 A user submitted this product idea:
 
 PRODUCT IDEA:
-$IDEA
+$PRODUCT_IDEA
 
-Generate a comprehensive implementation plan with the following sections (use exactly these headers):
+ADDITIONAL CONTEXT:
+$ADDITIONAL_CONTEXT
+
+PRIORITY:
+$PRIORITY
+
+Generate a comprehensive, high-quality implementation plan with the following sections (use EXACTLY these headers):
 
 ## 🎯 PROJECT OVERVIEW
-- Summary (one sentence)
-- Target users
-- Core value proposition
+- **Summary**: (One sentence summary)
+- **Target users**: (Specific audience)
+- **Core value proposition**: (Key benefits)
 
 ## ✨ FEATURES BREAKDOWN
-### P0 - Must Have
-(List critical features)
+Use a table format for each priority level:
+| Feature | Description | Priority |
+| :--- | :--- | :--- |
+| Feature Name | Short description | P0/P1/P2 |
 
+### P0 - Must Have
 ### P1 - Should Have
 ### P2 - Nice to Have
 
+## 📖 USER STORIES
+For each major feature, provide:
+- **Story**: As a [user type], I want [goal] so that [benefit]
+- **Acceptance Criteria**: (As a markdown checklist)
+
 ## 🏗️ TECHNICAL ARCHITECTURE
-- Tech Stack
-- System Architecture (ASCII diagram)
+- **Tech Stack**: (Bullet points of specific technologies)
+- **System Architecture**: (High-quality ASCII diagram)
+- **Schema & API**: (Detailed markdown tables)
 
 ## 👥 AGENT TASK BREAKDOWN
-### Backend Agent Tasks
-### Integration Agent Tasks
-### Frontend Agent Tasks
-### QA Agent Tasks
+Break down tasks for: **Backend**, **Integration**, **Frontend**, and **QA**.
+Use markdown tables showing:
+| Task | Description | Agent |
+| :--- | :--- | :--- |
 
 ## 📅 IMPLEMENTATION TIMELINE
+Break down into clearly labeled phases (e.g., Week 1, Week 2).
 
 ## 📝 GITHUB ISSUES TO CREATE
-For each issue, provide:
-- Issue title (format: [AGENT-TYPE] Description)
-- Dependencies
-- Description"
+For each issue, provide a markdown block with:
+- **Title**: [AGENT-TYPE] Description
+- **Labels**: (e.g., backend, chore, enhancement)
+- **Description**: Detailed deliverable checklist.
+
+Format the entire response as PREMIUM structured markdown that looks professional on GitHub."
+fi
 
 echo -e "${YELLOW}Generating plan...${NC}"
 
