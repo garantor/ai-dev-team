@@ -1,0 +1,103 @@
+name: "🧪 QA/Test Task"
+description: "QA Agent: Testing, quality assurance, and automation"
+title: "[QA] "
+labels: ["qa", "testing"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## QA/Test Agent Template
+        Use this for testing and quality assurance tasks.
+
+  - type: input
+    id: parent-issue
+    attributes:
+      label: "Feature Under Test"
+      description: "Link to the feature being tested"
+      placeholder: "#123"
+
+  - type: dropdown
+    id: test-type
+    attributes:
+      label: "Test Type"
+      options:
+        - "Unit Tests"
+        - "Integration Tests"
+        - "E2E Tests"
+        - "API Contract Tests"
+        - "Performance Tests"
+        - "Security Tests"
+        - "Accessibility Tests"
+        - "Regression Tests"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "What needs to be tested?"
+      placeholder: |
+        Write E2E tests for user profile feature
+        - Test viewing profile
+        - Test editing profile
+        - Test error scenarios
+    validations:
+      required: true
+
+  - type: textarea
+    id: test-scenarios
+    attributes:
+      label: "Test Scenarios"
+      description: "List all scenarios to cover"
+      placeholder: |
+        **Happy Path:**
+        - [ ] User can view their profile
+        - [ ] User can edit their name
+        - [ ] Changes are saved successfully
+
+        **Error Cases:**
+        - [ ] Invalid input shows error message
+        - [ ] API failure shows error state
+        - [ ] Network timeout is handled
+
+        **Edge Cases:**
+        - [ ] Empty profile data
+        - [ ] Very long names (>100 chars)
+        - [ ] Special characters in input
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: "Dependencies"
+      description: "What needs to be ready before testing?"
+      placeholder: |
+        - Backend API deployed to staging
+        - Frontend feature merged to main
+        - Test data seeded in database
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      options:
+        - "🔴 Critical (blocker for release)"
+        - "🟠 High (should test before release)"
+        - "🟡 Medium (can test after release)"
+        - "🟢 Low (nice to have)"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Testing Checklist"
+      options:
+        - label: "Test cases written"
+        - label: "Tests automated (if applicable)"
+        - label: "Tests passing in CI"
+        - label: "Coverage threshold met"
+        - label: "Bug tickets created for failures"
+        - label: "Test documentation updated"

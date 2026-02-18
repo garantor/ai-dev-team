@@ -1,0 +1,93 @@
+name: "🐛 Bug Report"
+description: "Report a bug found by any agent or user"
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report
+        Use this to report bugs that need fixing.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      options:
+        - "🔴 Critical (system down, data loss)"
+        - "🟠 High (major feature broken)"
+        - "🟡 Medium (feature partially broken)"
+        - "🟢 Low (minor issue, workaround exists)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: "Affected Area"
+      options:
+        - "Backend API"
+        - "Frontend UI"
+        - "Integration/API Client"
+        - "Database"
+        - "Authentication"
+        - "Performance"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Bug Description"
+      description: "Clear description of the bug"
+      placeholder: "User profile doesn't load when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: "How to reproduce the bug"
+      placeholder: |
+        1. Go to /profile
+        2. Click 'Edit Profile'
+        3. Submit form
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: "Expected Behavior"
+      description: "What should happen?"
+      placeholder: "Profile should update successfully"
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: "Actual Behavior"
+      description: "What actually happens?"
+      placeholder: "Error message appears: 'Failed to update profile'"
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment"
+      description: "Where does this occur?"
+      placeholder: |
+        - Browser: Chrome 120
+        - OS: macOS 14
+        - Environment: Production
+        - API Version: v1.2.3
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Logs/Screenshots"
+      description: "Add any relevant logs or screenshots"
+      placeholder: "Console errors, stack traces, screenshots..."
