@@ -9,13 +9,14 @@ permissions:
 
 jobs:
   acknowledge:
-    # Only run if issue has 'orchestrator' label and doesn't already have 'processing' label
+    # Only run if issue has 'orchestrator' label and
+    # doesn't already have 'processing' label
     if: |
       contains(github.event.issue.labels.*.name, 'orchestrator') &&
       !contains(github.event.issue.labels.*.name, 'processing')
-    
+
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Add Reaction to Issue
         uses: actions/github-script@v7
@@ -33,15 +34,17 @@ jobs:
         with:
           script: |
             const timestamp = new Date().toUTCString();
-            
+
             const comment = `## 🤖 AI Dev Team Orchestrator
 
             ✅ **Your request has been received!**
 
             ### What's happening now:
             1. 🔍 **Analyzing your product idea** (currently in progress)
-            2. ⏳ **Generating detailed implementation plan** (estimated 3-5 minutes)
-            3. 📋 **Creating comprehensive task breakdown** (with technical architecture, agent assignments, and timeline)
+            2. ⏳ **Generating detailed implementation plan** ` +
+              `(estimated 3-5 minutes)
+            3. 📋 **Creating comprehensive task breakdown** ` +
+              `(with technical architecture, agent assignments, and timeline)
 
             ### What to expect:
             - I'll post a **detailed product plan** as a comment below shortly
@@ -51,11 +54,12 @@ jobs:
               - \`REJECT\` - to cancel this request
 
             ### Need help?
-            - Check out the [AI Orchestrator Guide](../../docs/AI_ORCHESTRATOR_GUIDE.md)
+            - Check out the [AI Orchestrator Guide]` +
+              `(../../docs/AI_ORCHESTRATOR_GUIDE.md)
             - View example workflows in our [documentation](../../docs/)
 
             ---
-            ⏰ *Started at: ${timestamp}*  
+            ⏰ *Started at: ${timestamp}*
             🏷️ *Status: Processing*`;
 
             await github.rest.issues.createComment({
