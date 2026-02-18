@@ -92,13 +92,14 @@ jobs:
             }).catch(() => {});
             
             // Post confirmation comment
+            const commenter = context.payload.comment.user.login;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue_number,
               body: `## ✅ Plan Approved!
 
-          Thank you for approving the plan, @${context.payload.comment.user.login}!
+          Thank you for approving the plan, @${commenter}!
 
           **Next steps:**
           1. 🤖 Automated issue creation is starting...
@@ -120,6 +121,7 @@ jobs:
         with:
           script: |
             const issue_number = context.issue.number;
+            const commenter = context.payload.comment.user.login;
             
             // Post acknowledgment comment
             await github.rest.issues.createComment({
@@ -128,7 +130,7 @@ jobs:
               issue_number: issue_number,
               body: `## 🔄 Revision Requested
 
-          Thank you for the feedback, @${context.payload.comment.user.login}!
+          Thank you for the feedback, @${commenter}!
 
           **Status:**
           - ✅ Revision request received
@@ -165,13 +167,14 @@ jobs:
             }).catch(() => {});
             
             // Post thank you comment
+            const commenter = context.payload.comment.user.login;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue_number,
               body: `## ❌ Orchestration Cancelled
 
-          Thank you for your consideration, @${context.payload.comment.user.login}.
+          Thank you for your consideration, @${commenter}.
 
           This orchestration request has been cancelled. No issues will be created.
 
@@ -196,6 +199,8 @@ jobs:
         with:
           script: |
             const comment = context.payload.comment.body.trim().toUpperCase();
+            const commenter = context.payload.comment.user.login;
+            const issueCreator = context.payload.issue.user.login;
             
             // Only respond to command-like comments
             if (comment === 'APPROVE' || comment.startsWith('REVISE:') || comment === 'REJECT') {
@@ -203,6 +208,6 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: `⚠️ @${context.payload.comment.user.login} - Only the issue creator (@${context.payload.issue.user.login}) or repository collaborators can approve, revise, or reject this orchestration.`
+                body: `⚠️ @${commenter} - Only the issue creator (@${issueCreator}) or repository collaborators can approve, revise, or reject this orchestration.`
               });
             }

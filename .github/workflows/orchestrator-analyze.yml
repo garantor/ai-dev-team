@@ -314,9 +314,10 @@ jobs:
               ).length;
               const version = planCount + 1;
               
+              const username = context.payload.comment.user.login;
               commentBody = `# 🔄 Revised Plan v${version}
 
-          **Revision requested by:** @${context.payload.comment.user.login}
+          **Revision requested by:** @${username}
 
           ---
 

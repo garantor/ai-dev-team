@@ -381,82 +381,82 @@ jobs:
                 });
               }
             }
+            
+            // Helper function to update orchestrator progress
+            async function updateOrchestratorProgress(github, context, closedIssueNumber) {
+              try {
+                // Get the closed issue to find parent
+                const { data: closedIssue } = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: closedIssueNumber
+                });
+                
+                const parentMatch = (closedIssue.body || '').match(/Parent Issue:\s*#(\d+)/i);
+                if (!parentMatch) {
+                  console.log('No parent orchestrator issue found');
+                  return;
+                }
+                
+                const orchestratorNumber = parseInt(parentMatch[1]);
+                
+                // Get all issues linked to this orchestrator
+                const { data: allIssues } = await github.rest.issues.listForRepo({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'all',
+                  per_page: 100
+                });
+                
+                const linkedIssues = allIssues.filter(issue => {
+                  const body = issue.body || '';
+                  return body.includes(`Parent Issue: #${orchestratorNumber}`) && 
+                         issue.number !== orchestratorNumber;
+                });
+                
+                const totalIssues = linkedIssues.length;
+                const completedIssues = linkedIssues.filter(i => i.state === 'closed').length;
+                const progress = totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0;
+                
+                // Update orchestrator issue title with progress
+                const { data: orchestrator } = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: orchestratorNumber
+                });
+                
+                const newTitle = orchestrator.title.replace(/\s*\[\d+\/\d+\]\s*$/, '') + 
+                                 ` [${completedIssues}/${totalIssues}]`;
+                
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: orchestratorNumber,
+                  title: newTitle
+                });
+                
+                // If all issues are complete, add a completion comment
+                if (completedIssues === totalIssues && totalIssues > 0) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: orchestratorNumber,
+                    body: `## 🎉 All Issues Completed!
 
-# Helper function to update orchestrator progress
-async function updateOrchestratorProgress(github, context, closedIssueNumber) {
-  try {
-    // Get the closed issue to find parent
-    const { data: closedIssue } = await github.rest.issues.get({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: closedIssueNumber
-    });
-    
-    const parentMatch = (closedIssue.body || '').match(/Parent Issue:\s*#(\d+)/i);
-    if (!parentMatch) {
-      console.log('No parent orchestrator issue found');
-      return;
-    }
-    
-    const orchestratorNumber = parseInt(parentMatch[1]);
-    
-    // Get all issues linked to this orchestrator
-    const { data: allIssues } = await github.rest.issues.listForRepo({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      state: 'all',
-      per_page: 100
-    });
-    
-    const linkedIssues = allIssues.filter(issue => {
-      const body = issue.body || '';
-      return body.includes(`Parent Issue: #${orchestratorNumber}`) && 
-             issue.number !== orchestratorNumber;
-    });
-    
-    const totalIssues = linkedIssues.length;
-    const completedIssues = linkedIssues.filter(i => i.state === 'closed').length;
-    const progress = totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0;
-    
-    // Update orchestrator issue title with progress
-    const { data: orchestrator } = await github.rest.issues.get({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: orchestratorNumber
-    });
-    
-    const newTitle = orchestrator.title.replace(/\s*\[\d+\/\d+\]\s*$/, '') + 
-                     ` [${completedIssues}/${totalIssues}]`;
-    
-    await github.rest.issues.update({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: orchestratorNumber,
-      title: newTitle
-    });
-    
-    // If all issues are complete, add a completion comment
-    if (completedIssues === totalIssues && totalIssues > 0) {
-      await github.rest.issues.createComment({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        issue_number: orchestratorNumber,
-        body: `## 🎉 All Issues Completed!
+            **Congratulations!** All ${totalIssues} issues have been successfully completed.
 
-**Congratulations!** All ${totalIssues} issues have been successfully completed.
+            **Final Status:**
+            - ✅ Completed: ${completedIssues}/${totalIssues} (100%)
 
-**Final Status:**
-- ✅ Completed: ${completedIssues}/${totalIssues} (100%)
+            **Next Steps:**
+            1. Test the complete implementation
+            2. Deploy to production
+            3. Close this orchestrator issue when satisfied
 
-**Next Steps:**
-1. Test the complete implementation
-2. Deploy to production
-3. Close this orchestrator issue when satisfied
-
-Thank you for using the AI Dev Team! 🚀`
-      });
-    }
-  } catch (error) {
-    console.log(`Error updating orchestrator progress: ${error.message}`);
-  }
-}
+            Thank you for using the AI Dev Team! 🚀`
+                  });
+                }
+              } catch (error) {
+                console.log(`Error updating orchestrator progress: ${error.message}`);
+              }
+            }
