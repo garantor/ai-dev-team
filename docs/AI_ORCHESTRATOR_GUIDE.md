@@ -1,5 +1,7 @@
 # 🎯 AI Orchestrator: From Idea to Implementation
 
+> **🤖 Now Fully Automated!** The system automatically generates plans, creates issues, and coordinates agents.
+
 ## Overview
 
 The AI Orchestrator system allows you to **submit a single sentence** describing what you want to build, and AI agents will **automatically plan and implement** the entire project.
@@ -8,12 +10,21 @@ The AI Orchestrator system allows you to **submit a single sentence** describing
 
 **AI delivers:** Full implementation with code, tests, and documentation ✅
 
+**✨ NEW: Fully Automated**
+- 🤖 Plan generation: **Automatic** (1-2 minutes)
+- 📝 Issue creation: **Automatic** (after approval)
+- 🔄 Agent coordination: **Automatic**
+- 📊 Progress tracking: **Automatic** (daily reports)
+
+[📖 **Complete automation guide →**](AUTOMATION.md)
+
 ---
 
 ## 🚀 Quick Start (3 Steps)
 
 ### Step 1: Submit Your Idea (2 minutes)
 
+**Option A: Web Interface**
 1. Go to [New Issue](https://github.com/garantor/ai-dev-team/issues/new/choose)
 2. Select **"🚀 AI Orchestrator"** template
 3. Fill in just TWO fields:
@@ -21,15 +32,25 @@ The AI Orchestrator system allows you to **submit a single sentence** describing
    - Priority level
 4. Click "Submit new issue"
 
+**Option B: CLI Script**
+```bash
+./scripts/orchestrate.sh
+# Select option 1
+# Enter your idea
+```
+
 **Example:**
 ```
 💡 Product Idea: Create a web app that integrates with Uniswap for blockchain swapping
 ⚡ Priority: 🚀 High (this week)
 ```
 
-### Step 2: Review the Plan (5 minutes)
+### Step 2: Review the Plan (2-5 minutes)
 
-Within 24 hours, **Product Agent AI** comments with:
+**🤖 Automated!** Within 1-2 minutes, **GitHub Actions** automatically:
+- Calls AI (OpenAI GPT-4) to analyze your idea
+- Generates comprehensive plan
+- Posts plan as comment on your issue
 - Full feature breakdown
 - Technical architecture
 - Implementation timeline
@@ -40,16 +61,29 @@ Within 24 hours, **Product Agent AI** comments with:
 APPROVE
 ```
 
+**Or request changes:**
+```
+REVISE: Make it simpler, focus only on core features
+```
+
 ### Step 3: Watch It Get Built (Automatic)
 
-After approval:
-- ✅ All issues automatically created
-- ✅ Backend Agent builds APIs
-- ✅ Integration Agent creates clients
-- ✅ Frontend Agent builds UI
-- ✅ QA Agent tests everything
+**🤖 Automated!** After you comment `APPROVE`:
+
+**Within 1-2 minutes:**
+- ✅ All issues automatically created (GitHub Actions)
+- ✅ Dependencies linked  
+- ✅ Labels applied
+- ✅ Agents notified
+
+**Over the next days/weeks:**
+- ✅ Agents work automatically as dependencies are met
+- ✅ Backend → Integration → Frontend → QA
+- 📊 Daily progress reports posted
 
 **You only review and merge PRs!**
+
+[📖 **See how automation works →**](AUTOMATION.md)
 
 ---
 
@@ -450,7 +484,24 @@ APPROVE
 
 ## 🛠️ How to Use AI Tools
 
-### Option 1: ChatGPT/Claude (Manual)
+### Option 1: Automated (Recommended) 🤖
+
+**Fully automated with GitHub Actions:**
+
+1. **Submit idea** via orchestrator template or CLI script
+2. **Wait 1-2 minutes** - Plan automatically generated
+3. **Comment** `APPROVE` - Issues automatically created
+4. **Watch progress** - Daily reports posted automatically
+
+**Requirements:**
+- `OPENAI_API_KEY` configured in repository secrets (recommended)
+- Or use manual fallback if no API key
+
+[📖 **Automation setup guide →**](AUTOMATION.md)
+
+### Option 2: ChatGPT/Claude (Manual Fallback)
+
+If automation isn't available:
 
 1. **Submit idea** via GitHub issue template
 2. **Copy issue** content
@@ -477,7 +528,7 @@ Format as structured markdown for GitHub.
 5. **Review and approve** or iterate
 6. **Manually create issues** from the plan
 
-### Option 2: GitHub Copilot (Semi-Automatic)
+### Option 3: GitHub Copilot (Semi-Automatic)
 
 1. **Install GitHub Copilot** in VS Code
 2. **Submit idea** via orchestrator template
@@ -493,30 +544,30 @@ Format as structured markdown for GitHub.
    @workspace implement issue #[number]
    ```
 
-### Option 3: CLI Script (Fastest)
+### Option 4: CLI Script
 
-1. **Run the orchestrator script:**
-   ```bash
-   ./scripts/orchestrate.sh
-   ```
+**Enhanced with automation support:**
 
-2. **Select "Submit new idea"**
+```bash
+./scripts/orchestrate.sh
+```
 
-3. **Enter your idea** when prompted
+**Menu options:**
+1. 🚀 **Submit a new product idea** - Creates orchestrator issue
+2. 📊 **Check orchestrator status** - View current state and progress
+3. ✅ **Approve a plan** - Automatically post APPROVE comment
+4. 🔄 **Request plan revisions** - Post REVISE comment
+5. 📋 **List all orchestrators** - See all active orchestrations
+6. 📈 **View progress report** - See latest progress
+7. ❌ **Cancel an orchestrator** - Post REJECT comment
 
-4. **Script creates issue** automatically
+**Benefits:**
+- Faster than web interface
+- Status checking from terminal
+- Batch operations support
+- Progress monitoring
 
-5. **Use script to generate analysis:**
-   ```bash
-   ./scripts/orchestrate.sh
-   # Select "Generate Product Agent analysis"
-   ```
-
-6. **Approve and create issues:**
-   ```bash
-   ./scripts/orchestrate.sh
-   # Select "Approve and create agent issues"
-   ```
+[📖 **CLI script guide →**](AUTOMATION.md#cli-script)
 
 ---
 
@@ -579,8 +630,11 @@ Create a backend for a fitness tracking app with workout plans and progress trac
 
 ## 🔧 Troubleshooting
 
-**Q: Product Agent hasn't responded after 24 hours**
-- A: Tag @copilot in the issue or use ChatGPT manually
+**Q: Plan not generated after 5 minutes**
+- A: Check Actions tab for workflow status. If `OPENAI_API_KEY` not configured, manual instructions will be provided. [See automation guide](AUTOMATION.md#troubleshooting)
+
+**Q: Product Agent hasn't responded (no API key)**
+- A: Use manual ChatGPT method above, or configure `OPENAI_API_KEY` in repository secrets
 
 **Q: The plan is too complex/simple**
 - A: Comment `REVISE: Make it simpler` or `REVISE: Add more features`
@@ -593,6 +647,9 @@ Create a backend for a fitness tracking app with workout plans and progress trac
 
 **Q: What if an agent gets stuck?**
 - A: Comment on the agent's issue with `@copilot help with [specific problem]`
+
+**Q: Issues not created after approval**
+- A: Check Actions tab for "Orchestrator - Create Issues" workflow. May need to manually create from plan. [See troubleshooting guide](AUTOMATION.md#troubleshooting)
 
 ---
 
@@ -611,7 +668,9 @@ Or run:
 
 ## 📚 Additional Resources
 
+- [🤖 Automation Guide](./AUTOMATION.md) - **Complete automation documentation**
 - [AI Team Guide](./AI_TEAM_GUIDE.md) - How agents work together
 - [Issue Templates](../.github/ISSUE_TEMPLATE/) - All available templates
 - [PR Template](../.github/pull_request_template.md) - PR checklist
 - [Copilot Instructions](../.github/copilot-instructions.md) - Copilot integration
+- [GitHub Actions Workflows](../.github/workflows/) - View automation workflows
