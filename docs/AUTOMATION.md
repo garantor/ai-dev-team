@@ -347,12 +347,12 @@ on:
 Edit `.github/workflows/orchestrator-analyze.yml`:
 
 ```bash
-# Current: Google Gemini Pro
-RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$GOOGLE_API_KEY" ...)
+# Current: Google Gemini 2.5 Flash
+RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$GOOGLE_API_KEY" ...)
 
 # To use other Gemini models:
-# gemini-pro-vision - For image analysis
-# gemini-ultra - Most capable (when available)
+# gemini-2.0-flash - Previous generation flash model
+# gemini-2.5-pro - Most capable model
 ```
 
 **Generation Config:**

@@ -26,7 +26,7 @@ echo -e "${YELLOW}Testing API key...${NC}"
 
 # Test API call
 RESPONSE=$(curl -s -w "\n%{http_code}" \
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GOOGLE_API_KEY}" \
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}" \
   -H 'Content-Type: application/json' \
   -d '{
     "contents": [{
