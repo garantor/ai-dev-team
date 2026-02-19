@@ -4,10 +4,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 
-import WorkoutListScreen from './screens/WorkoutListScreen';
-import WorkoutDetailScreen from './screens/WorkoutDetailScreen';
-import WorkoutLogScreen from './screens/WorkoutLogScreen';
-import { RootStackParamList } from './types/workout';
+import WorkoutListScreen from '@screens/WorkoutListScreen';
+import WorkoutDetailScreen from '@screens/WorkoutDetailScreen';
+import WorkoutLogScreen from '@screens/WorkoutLogScreen';
+import { RootStackParamList } from '@types/workout';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
