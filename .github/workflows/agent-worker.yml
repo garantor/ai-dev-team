@@ -11,8 +11,11 @@ permissions:
   issues: write
   pull-requests: write
 
+# Global concurrency: only ONE agent-worker runs at a time.
+# Others queue up, preventing Gemini API rate limit (RPM/TPM/RPD) exhaustion
+# when the orchestrator creates 10+ issues simultaneously.
 concurrency:
-  group: agent-worker-${{ github.event.issue.number }}
+  group: agent-worker-global
   cancel-in-progress: false
 
 jobs:
@@ -147,7 +150,7 @@ jobs:
 
             Generate the files now:`;
 
-            // --- Call Gemini API ---
+            // --- Call Gemini API with retry + backoff ---
             const apiKey = process.env.GOOGLE_API_KEY;
             if (!apiKey) {
               await github.rest.issues.createComment({
@@ -169,20 +172,60 @@ jobs:
               }
             });
 
+            // Retry helper with exponential backoff for rate limits
+            const MAX_RETRIES = 3;
+            const BACKOFF_SECONDS = [15, 30, 60]; // escalating wait times
+
+            async function callGeminiWithRetry() {
+              for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                  // Write request body to temp file to avoid shell escaping issues
+                  fs.writeFileSync('/tmp/gemini_request.json', requestBody);
+                  const rawResponse = execSync(
+                    `curl -s -w "\n%{http_code}" "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}" -H "Content-Type: application/json" -d @/tmp/gemini_request.json`,
+                    { maxBuffer: 50 * 1024 * 1024, encoding: 'utf-8' }
+                  );
+
+                  // Split response body and HTTP status code
+                  const lines = rawResponse.trim().split('\n');
+                  const httpCode = parseInt(lines.pop());
+                  const body = lines.join('\n');
+                  const parsed = JSON.parse(body);
+
+                  // Rate limited (429) — retry with backoff
+                  if (httpCode === 429) {
+                    if (attempt < MAX_RETRIES) {
+                      const wait = BACKOFF_SECONDS[attempt];
+                      console.log(`Rate limited (429). Retrying in ${wait}s... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+                      execSync(`sleep ${wait}`);
+                      continue;
+                    }
+                    throw new Error(`Rate limited after ${MAX_RETRIES} retries. Try again later or increase your Gemini API quota.`);
+                  }
+
+                  // Other API errors
+                  if (parsed.error) {
+                    throw new Error(parsed.error.message || JSON.stringify(parsed.error));
+                  }
+
+                  const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                  if (!text) {
+                    throw new Error('Empty response from Gemini API');
+                  }
+                  return text;
+                } catch (err) {
+                  // If it's a rate limit retry situation, the continue above handles it.
+                  // For other errors, throw immediately.
+                  if (attempt >= MAX_RETRIES || !err.message?.includes('429')) {
+                    throw err;
+                  }
+                }
+              }
+            }
+
             let responseText;
             try {
-              const curlCmd = `curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}" -H "Content-Type: application/json" -d '${requestBody.replace(/'/g, "'\\''")}'`;
-              const rawResponse = execSync(curlCmd, { maxBuffer: 50 * 1024 * 1024, encoding: 'utf-8' });
-              const parsed = JSON.parse(rawResponse);
-
-              if (parsed.error) {
-                throw new Error(parsed.error.message || JSON.stringify(parsed.error));
-              }
-
-              responseText = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (!responseText) {
-                throw new Error('Empty response from Gemini API');
-              }
+              responseText = await callGeminiWithRetry();
             } catch (err) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,

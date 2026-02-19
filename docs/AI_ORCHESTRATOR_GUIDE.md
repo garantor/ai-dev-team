@@ -61,6 +61,9 @@ The AI Orchestrator system allows you to **submit a single sentence** describing
 - **[x] REVISE**: Check this to request changes.
 - **[x] REJECT**: Check this to cancel.
 
+> [!TIP]
+> **Manual Implementation**: If an agent doesn't start automatically, you can trigger it by commenting `/implement` on the issue.
+
 *Note: Traditional comments like "APPROVE" or "REJECT" also work.*
 
 **Or request changes:**
