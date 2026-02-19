@@ -2,7 +2,7 @@ name: Agent Coordinator
 
 on:
   issues:
-    types: [closed, labeled, unlabeled]
+    types: [opened, closed, labeled, unlabeled]
   pull_request:
     types: [opened, closed]
 
@@ -126,8 +126,13 @@ jobs:
             // Update progress on parent orchestrator issue
             await updateOrchestratorProgress(github, context, closedIssue);
 
-      - name: Handle issue labeled as ready (trigger agent)
-        if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'ready'
+      - name: Handle issue ready (trigger agent)
+        if: |
+          github.event_name == 'issues' && 
+          (
+            (github.event.action == 'labeled' && github.event.label.name == 'ready') ||
+            (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'ready'))
+          )
         uses: actions/github-script@v7
         with:
           script: |
