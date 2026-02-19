@@ -1,0 +1,57 @@
+name: Agent Worker
+description: Automatically implements code for ready issues
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  implement:
+    if: |
+      (github.event_name == 'issues' && github.event.label.name == 'ready') ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@workspace implement'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Implementation Agent
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const issueNumber = issue.number;
+            const body = issue.body;
+            const title = issue.title;
+            
+            console.log(`Agent Worker starting for Issue #${issueNumber}: ${title}`);
+            
+            // 1. Determine Agent Type
+            const labels = issue.labels.map(l => l.name);
+            const agentType = labels.find(l => ['backend', 'frontend', 'integration', 'qa'].includes(l)) || 'developer';
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `🤖 **${agentType.toUpperCase()} Agent** is starting implementation of #${issueNumber}...\n\nI will analyze the requirements and open a Pull Request shortly.`
+            });
+            
+            // 2. Implementation Logic
+            // In a real autonomous system, this would call an LLM to generate the code based on the issue body.
+            // For now, we'll implement a "base setup" if it's the Setup Project issue.
+            
+            if (title.includes('Setup Project') && agentType === 'backend') {
+              console.log("Detected project setup task. Creating base structure...");
+              // ... actual code generation would happen here ...
+            }
+            
+            console.log("Agent Worker implementation phase complete.");
