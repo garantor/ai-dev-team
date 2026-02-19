@@ -18,7 +18,7 @@ const registerSchema = Joi.object({
     'string.empty': 'Name is required',
     'any.required': 'Name is required',
   }),
-  university: Joi.string().min(2).max(100).optional().allow('').messages({
+  university: Joi.string().min(2).max(100).optional().allow(null).empty('').messages({
     'string.min': 'University name must be at least 2 characters long',
     'string.max': 'University name cannot exceed 100 characters',
   }),
