@@ -1,42 +1,46 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../src/app.js';
-import { query, connectDB } from '../src/config/db.js';
+import { connectDb, closeDb, query } from '../src/config/db.js';
+import { deleteAllWorkoutsByUserId } from '../src/models/workout.model.js';
 
-// Use a specific user ID for testing
+// Set NODE_ENV to 'test' for tests to use TEST_DATABASE_URL
+process.env.NODE_ENV = 'test';
+
 const TEST_USER_ID = 999;
-const AUTH_HEADER = `Bearer ${TEST_USER_ID}`;
+const AUTH_HEADERS = { 'x-user-id': TEST_USER_ID };
 
 describe('Workout Tracking API', () => {
   beforeAll(async () => {
-    // Ensure DB connection and table exists before all tests
-    await connectDB();
-  });
-
-  beforeEach(async () => {
-    // Clean up workouts for the test user before each test
-    await query('DELETE FROM workouts WHERE user_id = $1', [TEST_USER_ID]);
+    await connectDb();
+    // Ensure the test database is clean for the test user before all tests
+    await deleteAllWorkoutsByUserId(TEST_USER_ID);
   });
 
   afterAll(async () => {
-    // Clean up all test user workouts after all tests
-    await query('DELETE FROM workouts WHERE user_id = $1', [TEST_USER_ID]);
-    // Close DB connection if necessary (pg pool handles this usually)
+    // Clean up after all tests
+    await deleteAllWorkoutsByUserId(TEST_USER_ID);
+    await closeDb();
+  });
+
+  beforeEach(async () => {
+    // Clean up before each test to ensure isolation
+    await deleteAllWorkoutsByUserId(TEST_USER_ID);
   });
 
   // --- POST /api/v1/workouts --- //
-  it('should create a new workout for an authenticated user', async () => {
+  it('should log a new workout for the authenticated user', async () => {
     const newWorkout = {
       type: 'Running',
       duration_minutes: 30,
       calories_burned: 300,
-      notes: 'Morning run in the park',
-      workout_date: '2023-10-26',
+      notes: 'Morning run in the park.',
+      workout_date: '2023-10-26'
     };
 
     const res = await request(app)
       .post('/api/v1/workouts')
-      .set('Authorization', AUTH_HEADER)
+      .set(AUTH_HEADERS)
       .send(newWorkout);
 
     expect(res.statusCode).toEqual(201);
@@ -49,62 +53,81 @@ describe('Workout Tracking API', () => {
     expect(new Date(res.body.workout_date).toISOString().split('T')[0]).toEqual(newWorkout.workout_date);
   });
 
-  it('should return 400 if workout data is invalid', async () => {
+  it('should return 400 if required fields are missing when logging a workout', async () => {
     const invalidWorkout = {
-      type: '', // Invalid: empty string
-      duration_minutes: 0, // Invalid: must be > 0
+      type: 'Cycling'
+      // duration_minutes is missing
     };
 
     const res = await request(app)
       .post('/api/v1/workouts')
-      .set('Authorization', AUTH_HEADER)
+      .set(AUTH_HEADERS)
       .send(invalidWorkout);
 
     expect(res.statusCode).toEqual(400);
-    expect(res.body).toHaveProperty('message');
-    expect(res.body.message).toContain('Workout type cannot be empty.');
-    expect(res.body.message).toContain('Duration must be at least 1 minute.');
+    expect(res.body).toHaveProperty('message', 'Validation error');
+    expect(res.body.errors).toBeInstanceOf(Array);
+    expect(res.body.errors).toContain('Duration in minutes is required.');
   });
 
-  it('should return 401 if no authentication token is provided', async () => {
-    const newWorkout = {
-      type: 'Yoga',
-      duration_minutes: 60,
+  it('should return 400 if workout data has invalid values', async () => {
+    const invalidWorkout = {
+      type: '', // Invalid: empty string
+      duration_minutes: 0, // Invalid: must be > 0
+      calories_burned: 100,
+      workout_date: '2023-10-26'
     };
 
     const res = await request(app)
       .post('/api/v1/workouts')
-      .send(newWorkout);
+      .set(AUTH_HEADERS)
+      .send(invalidWorkout);
 
-    expect(res.statusCode).toEqual(401);
-    expect(res.body).toHaveProperty('message', 'Authentication required: No token provided or invalid format.');
+    expect(res.statusCode).toEqual(400);
+    expect(res.body).toHaveProperty('message', 'Validation error');
+    expect(res.body.errors).toBeInstanceOf(Array);
+    expect(res.body.errors).toContain('Workout type cannot be empty.');
+    expect(res.body.errors).toContain('Duration in minutes must be at least 1.');
   });
 
   // --- GET /api/v1/workouts --- //
   it('should retrieve all workouts for the authenticated user', async () => {
-    // Create a few workouts for the test user
-    await request(app).post('/api/v1/workouts').set('Authorization', AUTH_HEADER).send({
-      type: 'Weightlifting', duration_minutes: 60, calories_burned: 400, workout_date: '2023-10-25'
+    // Log a few workouts first
+    await request(app).post('/api/v1/workouts').set(AUTH_HEADERS).send({
+      type: 'Weightlifting',
+      duration_minutes: 60,
+      calories_burned: 400,
+      workout_date: '2023-10-25'
     });
-    await request(app).post('/api/v1/workouts').set('Authorization', AUTH_HEADER).send({
-      type: 'Cycling', duration_minutes: 45, calories_burned: 350, workout_date: '2023-10-26'
+    await request(app).post('/api/v1/workouts').set(AUTH_HEADERS).send({
+      type: 'Cycling',
+      duration_minutes: 45,
+      calories_burned: 350,
+      workout_date: '2023-10-26'
+    });
+    await request(app).post('/api/v1/workouts').set(AUTH_HEADERS).send({
+      type: 'Yoga',
+      duration_minutes: 45,
+      calories_burned: 150,
+      workout_date: '2023-10-26'
     });
 
     const res = await request(app)
       .get('/api/v1/workouts')
-      .set('Authorization', AUTH_HEADER);
+      .set(AUTH_HEADERS);
 
     expect(res.statusCode).toEqual(200);
     expect(res.body).toBeInstanceOf(Array);
-    expect(res.body.length).toEqual(2);
+    expect(res.body.length).toEqual(3);
     expect(res.body[0].user_id).toEqual(TEST_USER_ID);
     expect(res.body[1].user_id).toEqual(TEST_USER_ID);
+    expect(res.body[2].user_id).toEqual(TEST_USER_ID);
   });
 
   it('should return an empty array if no workouts exist for the user', async () => {
     const res = await request(app)
       .get('/api/v1/workouts')
-      .set('Authorization', AUTH_HEADER);
+      .set(AUTH_HEADERS);
 
     expect(res.statusCode).toEqual(200);
     expect(res.body).toBeInstanceOf(Array);
@@ -116,51 +139,46 @@ describe('Workout Tracking API', () => {
       .get('/api/v1/workouts');
 
     expect(res.statusCode).toEqual(401);
-    expect(res.body).toHaveProperty('message', 'Authentication required: No token provided or invalid format.');
+    expect(res.body).toHaveProperty('message', 'Authentication required.');
   });
 
   // --- PUT /api/v1/workouts/:id --- //
   it('should update an existing workout for the authenticated user', async () => {
-    // First, create a workout to update
-    const createRes = await request(app)
+    // First, log a workout
+    const postRes = await request(app)
       .post('/api/v1/workouts')
-      .set('Authorization', AUTH_HEADER)
+      .set(AUTH_HEADERS)
       .send({
-        type: 'Swimming', duration_minutes: 40, calories_burned: 250, workout_date: '2023-10-20'
+        type: 'Swimming',
+        duration_minutes: 40,
+        calories_burned: 250,
+        workout_date: '2023-10-27'
       });
-    const workoutId = createRes.body.id;
+
+    const workoutId = postRes.body.id;
 
     const updatedData = {
-      type: 'Swimming (Freestyle)',
-      duration_minutes: 45,
-      calories_burned: 300,
-      notes: 'Improved speed',
-      workout_date: '2023-10-20',
+      duration_minutes: 50,
+      notes: 'Evening swim, felt great!'
     };
 
     const res = await request(app)
       .put(`/api/v1/workouts/${workoutId}`)
-      .set('Authorization', AUTH_HEADER)
+      .set(AUTH_HEADERS)
       .send(updatedData);
 
     expect(res.statusCode).toEqual(200);
     expect(res.body).toHaveProperty('id', workoutId);
-    expect(res.body.type).toEqual(updatedData.type);
     expect(res.body.duration_minutes).toEqual(updatedData.duration_minutes);
-    expect(res.body.calories_burned).toEqual(updatedData.calories_burned);
     expect(res.body.notes).toEqual(updatedData.notes);
+    expect(res.body.type).toEqual('Swimming'); // Type should remain unchanged
   });
 
   it('should return 404 if workout to update is not found or not owned by user', async () => {
-    const nonExistentId = 999999;
-    const updatedData = {
-      type: 'Hiking', duration_minutes: 120, calories_burned: 600, workout_date: '2023-10-27'
-    };
-
     const res = await request(app)
-      .put(`/api/v1/workouts/${nonExistentId}`)
-      .set('Authorization', AUTH_HEADER)
-      .send(updatedData);
+      .put('/api/v1/workouts/99999') // Non-existent ID
+      .set(AUTH_HEADERS)
+      .send({ type: 'Hiking' });
 
     expect(res.statusCode).toEqual(404);
     expect(res.body).toHaveProperty('message', 'Workout not found or not authorized to update.');
@@ -170,7 +188,7 @@ describe('Workout Tracking API', () => {
     // First, create a workout
     const createRes = await request(app)
       .post('/api/v1/workouts')
-      .set('Authorization', AUTH_HEADER)
+      .set(AUTH_HEADERS)
       .send({
         type: 'Jogging', duration_minutes: 30, workout_date: '2023-10-21'
       });
@@ -183,13 +201,14 @@ describe('Workout Tracking API', () => {
 
     const res = await request(app)
       .put(`/api/v1/workouts/${workoutId}`)
-      .set('Authorization', AUTH_HEADER)
+      .set(AUTH_HEADERS)
       .send(invalidUpdateData);
 
     expect(res.statusCode).toEqual(400);
-    expect(res.body).toHaveProperty('message');
-    expect(res.body.message).toContain('Workout type should have a minimum length of 2.');
-    expect(res.body.message).toContain('Duration must be at least 1 minute.');
+    expect(res.body).toHaveProperty('message', 'Validation error');
+    expect(res.body.errors).toBeInstanceOf(Array);
+    expect(res.body.errors).toContain('Workout type should have a minimum length of 2.');
+    expect(res.body.errors).toContain('Duration in minutes must be at least 1.');
   });
 
   it('should return 401 if no authentication token is provided for PUT', async () => {
@@ -198,38 +217,43 @@ describe('Workout Tracking API', () => {
       .send({ type: 'Test', duration_minutes: 10 });
 
     expect(res.statusCode).toEqual(401);
+    expect(res.body).toHaveProperty('message', 'Authentication required.');
   });
 
   // --- DELETE /api/v1/workouts/:id --- //
   it('should delete an existing workout for the authenticated user', async () => {
-    // First, create a workout to delete
-    const createRes = await request(app)
+    // First, log a workout
+    const postRes = await request(app)
       .post('/api/v1/workouts')
-      .set('Authorization', AUTH_HEADER)
+      .set(AUTH_HEADERS)
       .send({
-        type: 'Stretching', duration_minutes: 20, workout_date: '2023-10-19'
+        type: 'Cycling',
+        duration_minutes: 75,
+        calories_burned: 600,
+        workout_date: '2023-10-28'
       });
-    const workoutId = createRes.body.id;
+
+    const workoutId = postRes.body.id;
 
     const res = await request(app)
       .delete(`/api/v1/workouts/${workoutId}`)
-      .set('Authorization', AUTH_HEADER);
+      .set(AUTH_HEADERS);
 
-    expect(res.statusCode).toEqual(204);
+    expect(res.statusCode).toEqual(200);
+    expect(res.body).toHaveProperty('message', 'Workout deleted successfully.');
+    expect(res.body).toHaveProperty('id', workoutId);
 
     // Verify it's actually deleted
     const getRes = await request(app)
       .get('/api/v1/workouts')
-      .set('Authorization', AUTH_HEADER);
+      .set(AUTH_HEADERS);
     expect(getRes.body.some(w => w.id === workoutId)).toBeFalsy();
   });
 
   it('should return 404 if workout to delete is not found or not owned by user', async () => {
-    const nonExistentId = 999999;
-
     const res = await request(app)
-      .delete(`/api/v1/workouts/${nonExistentId}`)
-      .set('Authorization', AUTH_HEADER);
+      .delete('/api/v1/workouts/99999') // Non-existent ID
+      .set(AUTH_HEADERS);
 
     expect(res.statusCode).toEqual(404);
     expect(res.body).toHaveProperty('message', 'Workout not found or not authorized to delete.');
@@ -240,5 +264,23 @@ describe('Workout Tracking API', () => {
       .delete('/api/v1/workouts/1');
 
     expect(res.statusCode).toEqual(401);
+    expect(res.body).toHaveProperty('message', 'Authentication required.');
+  });
+
+  it('should return 401 if no authentication header is provided', async () => {
+    const newWorkout = {
+      type: 'Running',
+      duration_minutes: 30,
+      calories_burned: 300,
+      notes: 'Morning run in the park.',
+      workout_date: '2023-10-26'
+    };
+
+    const res = await request(app)
+      .post('/api/v1/workouts')
+      .send(newWorkout);
+
+    expect(res.statusCode).toEqual(401);
+    expect(res.body).toHaveProperty('message', 'Authentication required.');
   });
 });

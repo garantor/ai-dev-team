@@ -1,6 +1,4 @@
 {
-
-
   "name": "workout-tracking-api",
   "version": "1.0.0",
   "description": "Workout Tracking API for authenticated users.",
@@ -8,7 +6,6 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-
     "dev": "node --watch src/server.js",
     "test": "vitest run --dir tests",
     "test:watch": "vitest --dir tests"
@@ -18,11 +15,14 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^1.6.8",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "firebase-admin": "^12.1.0",
-    "joi": "^17.13.0",
+    "helmet": "^7.1.0",
+    "joi": "^17.13.1",
     "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
     "pg": "^8.11.5"
   },
   "devDependencies": {
@@ -31,4 +31,3 @@
     "vitest": "^1.6.0"
   }
 }
-
