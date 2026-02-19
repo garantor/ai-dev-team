@@ -3,39 +3,41 @@
 ## Overview
 GitHub Copilot can behave as different agents based on issue labels and templates. This document outlines the instructions for Copilot to act as Backend, Frontend, Integration, and QA agents.
 
+## Project Context
+- **Language**: JavaScript / Node.js
+- **Environment**: GitHub Actions / WSL
+- **Key Scripts**: Located in `scripts/` (e.g., `orchestrator-issue-creator.js`)
+- **Workflows**: Managed in `.github/workflows/`
+
 ## Instructions by Agent Type
 
 ### 1. Backend Agent
 - **Label**: `backend`
-- **Template**: Use templates related to API development and server-side logic.
 - **Focus Areas**:
-  - RESTful APIs
-  - Database interactions
-  - Business logic implementation  
+  - Node.js scripts and utilities
+  - GitHub API integration via `octokit/core` or `actions/github-script`
+  - Database logic and model definitions
 
 ### 2. Frontend Agent
 - **Label**: `frontend`
-- **Template**: Use templates related to UI/UX design and implementation.
 - **Focus Areas**:
-  - JavaScript, HTML, CSS
-  - Responsive design
-  - Frameworks like React, Angular, or Vue.js
+  - React components (if applicable)
+  - UI styling and layout
+  - User interaction flows
 
 ### 3. Integration Agent
 - **Label**: `integration`
-- **Template**: Use templates related to system integrations and APIs.
 - **Focus Areas**:
-  - API integrations between services
-  - Data synchronization
-  - Middleware functionalities
+  - External API clients
+  - Data mapping and transformation
+  - Multi-service orchestration
 
 ### 4. QA Agent
 - **Label**: `qa`
-- **Template**: Use templates related to testing and quality assurance.
 - **Focus Areas**:
-  - Test case writing
-  - Automation scripts
-  - Bug reporting and tracking
+  - Test case implementation (Vitest/Jest)
+  - Workflow verification scripts
+  - Regression testing
 
 ## Conclusion
-By labeling issues appropriately and using specific templates, GitHub Copilot can effectively serve different development roles to enhance productivity and collaboration.
+Follow the specialized instructions for your agent type while maintaining the repository's coding standards and automated workflow patterns.

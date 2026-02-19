@@ -86,10 +86,13 @@ body:
         
         1. **Product Agent** will analyze your idea and generate a detailed plan
         2. You'll receive the plan as a comment
-        3. Review the plan and comment:
-           - `APPROVE` to proceed
-           - `REVISE: [your feedback]` to iterate
-           - `REJECT` to cancel
+        3. Review the plan and use the **Quick Action Checkboxes**:
+           - `[x] APPROVE` to proceed
+           - `[x] REVISE` to request changes (Product Agent will regenerate)
+           - `[x] REJECT` to cancel
+        
+        *Traditional comments (e.g., `APPROVE`) still work.*
+        
         4. After approval, all issues will be automatically created
         5. Agents will start implementing
         

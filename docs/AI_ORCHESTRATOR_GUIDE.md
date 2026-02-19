@@ -56,10 +56,12 @@ The AI Orchestrator system allows you to **submit a single sentence** describing
 - Implementation timeline
 - All GitHub issues ready to create
 
-**You just review and comment:**
-```
-APPROVE
-```
+**You review the plan and take action using the Quick Action Checkboxes:**
+- **[x] APPROVE**: Check this to automatically create all issues and start agents.
+- **[x] REVISE**: Check this to request changes.
+- **[x] REJECT**: Check this to cancel.
+
+*Note: Traditional comments like "APPROVE" or "REJECT" also work.*
 
 **Or request changes:**
 ```
@@ -459,10 +461,10 @@ Full product specification for collaborative task management app with real-time 
 
 ## ✅ APPROVAL REQUIRED
 
-Please review this plan and comment:
-- `APPROVE` to proceed with creating all issues
-- `REVISE: [your feedback]` to request changes
-- `REJECT` to cancel
+Please review this plan and use the **Quick Action Checkboxes**:
+- **[x] APPROVE** to proceed with creating all issues
+- **[x] REVISE** to request changes
+- **[x] REJECT** to cancel
 
 Once approved, all 12 issues will be automatically created with proper dependencies and assignments.
 ```
