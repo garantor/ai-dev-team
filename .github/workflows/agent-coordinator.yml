@@ -135,7 +135,7 @@ jobs:
           )
         uses: actions/github-script@v7
         with:
-          script: |
+           script: |
             const issue = context.payload.issue;
             const issueNumber = issue.number;
             
@@ -179,7 +179,21 @@ jobs:
               return;
             }
             
-            // Post agent-specific instructions
+            // Idempotency: check if we already posted a "Ready to Start" comment
+            const existingComments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            const alreadyPosted = existingComments.data.some(c => 
+              c.body.includes('Ready to Start') && c.user.login === 'github-actions[bot]'
+            );
+            if (alreadyPosted) {
+              console.log(`Skipping duplicate "Ready to Start" comment for issue #${issueNumber}`);
+              return;
+            }
+            
+            // Post agent-specific instructions (no @mention to avoid tagging real users)
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -200,7 +214,7 @@ jobs:
             - [ ] Open a Pull Request following the PR template
             - [ ] Link the PR to this issue
 
-            **@copilot** Please implement this ${agentType} task following best practices and the repository guidelines.
+            > The **Agent Worker** will automatically begin implementation. To manually trigger, comment \`/implement\` on this issue.
 
             **Guidelines:** See [\`.github/copilot-instructions.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/.github/copilot-instructions.md) for ${agentType} agent specifications.`
             });

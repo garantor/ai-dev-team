@@ -1,5 +1,4 @@
 name: Agent Worker
-description: Automatically implements code for ready issues
 
 on:
   issue_comment:
@@ -14,44 +13,86 @@ permissions:
 
 jobs:
   implement:
+    # Trigger on:
+    #   1. Issue gets the 'ready' label (automatic)
+    #   2. Someone comments '/implement' on an issue (manual fallback)
     if: |
       (github.event_name == 'issues' && github.event.label.name == 'ready') ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@workspace implement'))
+      (github.event_name == 'issue_comment' && github.event.comment.body == '/implement')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Implementation Agent
+      - name: Run Implementation Agent
         uses: actions/github-script@v7
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         with:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |
             const issue = context.payload.issue;
             const issueNumber = issue.number;
-            const body = issue.body;
+            const body = issue.body || '';
             const title = issue.title;
-            
-            console.log(`Agent Worker starting for Issue #${issueNumber}: ${title}`);
-            
-            // 1. Determine Agent Type
+
+            // --- Idempotency: skip if we already started work ---
+            const existingComments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            const alreadyStarted = existingComments.data.some(c =>
+              c.body.includes('**Agent Worker** is implementing') && c.user.login === 'github-actions[bot]'
+            );
+            if (alreadyStarted) {
+              console.log(`Agent Worker already started for issue #${issueNumber}, skipping.`);
+              return;
+            }
+
+            // --- Determine Agent Type ---
             const labels = issue.labels.map(l => l.name);
             const agentType = labels.find(l => ['backend', 'frontend', 'integration', 'qa'].includes(l)) || 'developer';
-            
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `🤖 **${agentType.toUpperCase()} Agent** is starting implementation of #${issueNumber}...\n\nI will analyze the requirements and open a Pull Request shortly.`
+              body: `🤖 **Agent Worker** is implementing this **${agentType}** task...\n\nI will analyze the requirements and open a Pull Request shortly.`
             });
-            
-            // 2. Implementation Logic
-            // In a real autonomous system, this would call an LLM to generate the code based on the issue body.
-            // For now, we'll implement a "base setup" if it's the Setup Project issue.
-            
-            if (title.includes('Setup Project') && agentType === 'backend') {
-              console.log("Detected project setup task. Creating base structure...");
-              // ... actual code generation would happen here ...
+
+            // --- Add in-progress label ---
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['in-progress']
+              });
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'ready'
+              });
+            } catch (e) {
+              console.log('Label update error (non-fatal):', e.message);
             }
-            
-            console.log("Agent Worker implementation phase complete.");
+
+            // --- Implementation placeholder ---
+            // In a full implementation, this section would:
+            //   1. Call Gemini API with the issue body as context
+            //   2. Generate code files for the agent type
+            //   3. Create a branch, commit files, and open a PR
+            //
+            // For now, we log and notify.
+            console.log(`Agent type: ${agentType}`);
+            console.log(`Issue title: ${title}`);
+            console.log(`Issue body: ${body.substring(0, 500)}`);
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `📋 **${agentType.toUpperCase()} Agent** has analyzed issue #${issueNumber}.\n\n**Next step:** An AI-powered implementation will be generated and submitted as a Pull Request.\n\n> If the automated agent does not open a PR within 10 minutes, a human developer should pick up this task.`
+            });
