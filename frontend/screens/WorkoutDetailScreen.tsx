@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ActivityIndicator, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
-import { Workout, RootStackParamList } from '../types/workout';
-import { getWorkoutById } from '../api/workoutApi';
-import { globalStyles } from '../styles/globalStyles';
-import { useWorkouts } from '../hooks/useWorkouts';
+import { Workout, RootStackParamList } from '@types/workout';
+import { getWorkoutById } from '@api/workoutApi';
+import { globalStyles } from '@styles/globalStyles';
+import { useWorkouts } from '@hooks/useWorkouts';
 
 type WorkoutDetailScreenProps = StackScreenProps<RootStackParamList, 'WorkoutDetail'>;
 
