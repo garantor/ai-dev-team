@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
-import { Workout, WorkoutFormData } from '../types/workout';
-import { globalStyles } from '../styles/globalStyles';
+import { Workout, WorkoutFormData } from '@types/workout';
+import { globalStyles } from '@styles/globalStyles';
 
 interface WorkoutFormProps {
   initialData?: Workout;
