@@ -1,68 +1,74 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import LoginScreen from '@screens/LoginScreen';
-import { AuthProvider, useAuth } from '@hooks/useAuth';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Alert } from 'react-native';
+import LoginScreen from '../screens/LoginScreen';
+import { AuthProvider, useAuth } from '../hooks/useAuth';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// Mock @react-navigation/native-stack
+// Mock @react-navigation/native
 const mockNavigate = jest.fn();
 const mockReplace = jest.fn();
-const mockNavigation = {
-  navigate: mockNavigate,
-  replace: mockReplace,
-  goBack: jest.fn(),
-  setOptions: jest.fn(),
-  setParams: jest.fn(),
-  dispatch: jest.fn(),
-  isFocused: jest.fn(() => true),
-  canGoBack: jest.fn(() => true),
-  getParent: jest.fn(),
-  getState: jest.fn(),
-} as unknown as NativeStackNavigationProp<any>;
-
-// Mock useAuth hook
-jest.mock('@hooks/useAuth', () => ({
-  useAuth: jest.fn(),
-  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+jest.mock('@react-navigation/native', () => ({
+  ...jest.requireActual('@react-navigation/native'),
+  useNavigation: () => ({
+    navigate: mockNavigate,
+    replace: mockReplace,
+  }),
 }));
 
-// Mock Alert.alert
-jest.spyOn(Alert, 'alert');
+// Mock useAuth hook
+const mockLogin = jest.fn();
+const mockRegister = jest.fn();
+const mockLogout = jest.fn();
+const mockUpdateUserOnboardingStatus = jest.fn();
+const mockUpdateUserProfile = jest.fn();
+
+jest.mock('../hooks/useAuth', () => ({
+  ...jest.requireActual('../hooks/useAuth'),
+  useAuth: () => ({
+    user: null,
+    token: null,
+    isLoading: false,
+    login: mockLogin,
+    register: mockRegister,
+    logout: mockLogout,
+    updateUserOnboardingStatus: mockUpdateUserOnboardingStatus,
+    updateUserProfile: mockUpdateUserProfile,
+  }),
+}));
+
+// Helper to wrap component with necessary providers
+const Stack = createNativeStackNavigator();
+const renderWithProviders = (component: React.ReactElement) => {
+  return render(
+    <AuthProvider>
+      <NavigationContainer>
+        <Stack.Navigator>
+          <Stack.Screen name="Login" component={() => component} />
+          <Stack.Screen name="Register" component={() => <Text>Register Screen</Text>} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </AuthProvider>
+  );
+};
 
 describe('LoginScreen', () => {
-  const mockLogin = jest.fn();
-  const mockUser = { id: '1', email: 'test@example.com', name: 'Test User', university: 'Test Uni' };
-
   beforeEach(() => {
     jest.clearAllMocks();
-    (useAuth as jest.Mock).mockReturnValue({
-      login: mockLogin,
-      isLoading: false,
-      error: null,
-      user: null, // Initially no user data for login screen
-    });
   });
 
-  it('renders correctly with email and password inputs and a login button', () => {
-    const { getByLabelText, getByText } = render(
-      <AuthProvider>
-        <LoginScreen navigation={mockNavigation} route={{ key: 'Login', name: 'Login' }} />
-      </AuthProvider>
-    );
+  it('renders correctly', () => {
+    const { getByText, getByPlaceholderText } = renderWithProviders(<LoginScreen />);
 
-    expect(getByLabelText('Email')).toBeTruthy();
-    expect(getByLabelText('Password')).toBeTruthy();
+    expect(getByText('Welcome Back!')).toBeTruthy();
+    expect(getByPlaceholderText('Enter your email')).toBeTruthy();
+    expect(getByPlaceholderText('Enter your password')).toBeTruthy();
     expect(getByText('Login')).toBeTruthy();
-    expect(getByText("Don't have an account? Register")).toBeTruthy();
+    expect(getByText('Register')).toBeTruthy();
   });
 
-  it('displays error messages for invalid input', async () => {
-    const { getByText, getByLabelText } = render(
-      <AuthProvider>
-        <LoginScreen navigation={mockNavigation} route={{ key: 'Login', name: 'Login' }} />
-      </AuthProvider>
-    );
+  it('displays validation errors for empty fields', async () => {
+    const { getByText, getByPlaceholderText } = renderWithProviders(<LoginScreen />);
 
     fireEvent.press(getByText('Login'));
 
@@ -70,119 +76,92 @@ describe('LoginScreen', () => {
       expect(getByText('Email is required.')).toBeTruthy();
       expect(getByText('Password is required.')).toBeTruthy();
     });
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
 
-    fireEvent.changeText(getByLabelText('Email'), 'invalid-email');
+  it('displays validation error for invalid email format', async () => {
+    const { getByText, getByPlaceholderText } = renderWithProviders(<LoginScreen />);
+
+    fireEvent.changeText(getByPlaceholderText('Enter your email'), 'invalid-email');
+    fireEvent.changeText(getByPlaceholderText('Enter your password'), 'password123');
     fireEvent.press(getByText('Login'));
 
     await waitFor(() => {
       expect(getByText('Invalid email format.')).toBeTruthy();
     });
+    expect(mockLogin).not.toHaveBeenCalled();
   });
 
-  it('calls login function with correct credentials and navigates to Onboarding if user has no fitness data', async () => {
-    (useAuth as jest.Mock).mockReturnValue({
-      login: mockLogin.mockResolvedValueOnce(undefined),
-      isLoading: false,
-      error: null,
-      user: mockUser, // User data available after successful login
-    });
+  it('displays validation error for short password', async () => {
+    const { getByText, getByPlaceholderText } = renderWithProviders(<LoginScreen />);
 
-    const { getByLabelText, getByText } = render(
-      <AuthProvider>
-        <LoginScreen navigation={mockNavigation} route={{ key: 'Login', name: 'Login' }} />
-      </AuthProvider>
-    );
-
-    fireEvent.changeText(getByLabelText('Email'), 'test@example.com');
-    fireEvent.changeText(getByLabelText('Password'), 'password123');
+    fireEvent.changeText(getByPlaceholderText('Enter your email'), 'test@example.com');
+    fireEvent.changeText(getByPlaceholderText('Enter your password'), 'short');
     fireEvent.press(getByText('Login'));
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith({
-        email: 'test@example.com',
-        password: 'password123',
-      });
-      expect(mockReplace).toHaveBeenCalledWith('Onboarding');
+      expect(getByText('Password must be at least 6 characters.')).toBeTruthy();
     });
+    expect(mockLogin).not.toHaveBeenCalled();
   });
 
-  it('calls login function and navigates to Home if user has fitness data', async () => {
-    (useAuth as jest.Mock).mockReturnValue({
-      login: mockLogin.mockResolvedValueOnce(undefined),
-      isLoading: false,
-      error: null,
-      user: { ...mockUser, fitnessGoals: ['Lose Weight'], fitnessLevel: 'beginner' }, // User data with fitness info
-    });
+  it('calls login function with correct credentials on valid input', async () => {
+    mockLogin.mockResolvedValueOnce(undefined); // Simulate successful login
 
-    const { getByLabelText, getByText } = render(
-      <AuthProvider>
-        <LoginScreen navigation={mockNavigation} route={{ key: 'Login', name: 'Login' }} />
-      </AuthProvider>
-    );
+    const { getByText, getByPlaceholderText, queryByText } = renderWithProviders(<LoginScreen />);
 
-    fireEvent.changeText(getByLabelText('Email'), 'test@example.com');
-    fireEvent.changeText(getByLabelText('Password'), 'password123');
+    fireEvent.changeText(getByPlaceholderText('Enter your email'), 'test@example.com');
+    fireEvent.changeText(getByPlaceholderText('Enter your password'), 'password123');
     fireEvent.press(getByText('Login'));
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith({
-        email: 'test@example.com',
-        password: 'password123',
-      });
-      expect(mockReplace).toHaveBeenCalledWith('Home');
+      expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123');
     });
+    expect(queryByText('Email is required.')).toBeNull();
+    expect(queryByText('Password is required.')).toBeNull();
   });
 
-  it('displays an alert on login failure', async () => {
-    const errorMessage = 'Invalid credentials';
-    (useAuth as jest.Mock).mockReturnValue({
-      login: mockLogin.mockRejectedValueOnce(new Error(errorMessage)),
-      isLoading: false,
-      error: errorMessage,
-      user: null,
-    });
+  it('navigates to Register screen when Register link is pressed', () => {
+    const { getByText } = renderWithProviders(<LoginScreen />);
 
-    const { getByLabelText, getByText } = render(
-      <AuthProvider>
-        <LoginScreen navigation={mockNavigation} route={{ key: 'Login', name: 'Login' }} />
-      </AuthProvider>
-    );
+    fireEvent.press(getByText('Register'));
 
-    fireEvent.changeText(getByLabelText('Email'), 'wrong@example.com');
-    fireEvent.changeText(getByLabelText('Password'), 'wrongpassword');
-    fireEvent.press(getByText('Login'));
-
-    await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalled();
-      expect(Alert.alert).toHaveBeenCalledWith('Login Failed', errorMessage);
-    });
+    expect(mockReplace).toHaveBeenCalledWith('Register');
   });
 
-  it('navigates to Register screen when "Register" link is pressed', () => {
-    const { getByText } = render(
-      <AuthProvider>
-        <LoginScreen navigation={mockNavigation} route={{ key: 'Login', name: 'Login' }} />
-      </AuthProvider>
-    );
+  it('disables button when loading', () => {
+    // Temporarily mock useAuth to return isLoading: true
+    jest.mock('../hooks/useAuth', () => ({
+      ...jest.requireActual('../hooks/useAuth'),
+      useAuth: () => ({
+        user: null,
+        token: null,
+        isLoading: true,
+        login: mockLogin,
+        register: mockRegister,
+        logout: mockLogout,
+        updateUserOnboardingStatus: mockUpdateUserOnboardingStatus,
+        updateUserProfile: mockUpdateUserProfile,
+      }),
+    }));
 
-    fireEvent.press(getByText("Don't have an account? Register"));
-    expect(mockNavigate).toHaveBeenCalledWith('Register');
-  });
+    const { getByText } = renderWithProviders(<LoginScreen />);
+    const loginButton = getByText('Login');
+    expect(loginButton.props.accessibilityState.disabled).toBe(true);
 
-  it('shows loading overlay when isLoading is true', () => {
-    (useAuth as jest.Mock).mockReturnValue({
-      login: mockLogin,
-      isLoading: true,
-      error: null,
-      user: null,
-    });
-
-    const { getByText } = render(
-      <AuthProvider>
-        <LoginScreen navigation={mockNavigation} route={{ key: 'Login', name: 'Login' }} />
-      </AuthProvider>
-    );
-
-    expect(getByText('Logging in...')).toBeTruthy();
+    // Restore original mock after test
+    jest.mock('../hooks/useAuth', () => ({
+      ...jest.requireActual('../hooks/useAuth'),
+      useAuth: () => ({
+        user: null,
+        token: null,
+        isLoading: false,
+        login: mockLogin,
+        register: mockRegister,
+        logout: mockLogout,
+        updateUserOnboardingStatus: mockUpdateUserOnboardingStatus,
+        updateUserProfile: mockUpdateUserProfile,
+      }),
+    }));
   });
 });

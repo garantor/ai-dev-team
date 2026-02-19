@@ -1,17 +1,27 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
-import { User, LoginPayload, RegisterPayload, AuthResponse } from '@types/auth';
-import { getAuthToken, getUserData, setAuthToken, setUserData, removeAuthToken, removeUserData } from '@utils/storage';
-import { login as apiLogin, register as apiRegister, logout as apiLogout } from '@services/authService';
+import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../api';
+import { Alert } from 'react-native';
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  university?: string;
+  onboardingComplete?: boolean; // Added for onboarding flow
+  fitnessGoals?: string[];
+  fitnessLevel?: string;
+}
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  error: string | null;
-  login: (payload: LoginPayload) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string, university: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (userData: Partial<User>) => void;
+  updateUserOnboardingStatus: (status: boolean) => void;
+  updateUserProfile: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,106 +34,122 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadAuthData = async () => {
+    const loadUserSession = async () => {
       try {
-        const storedToken = await getAuthToken();
-        const storedUser = await getUserData();
+        const storedToken = await AsyncStorage.getItem('userToken');
+        const storedUser = await AsyncStorage.getItem('user');
+
         if (storedToken && storedUser) {
           setToken(storedToken);
-          setUser(storedUser);
+          setUser(JSON.parse(storedUser));
         }
-      } catch (e) {
-        console.error('Failed to load auth data from storage', e);
+      } catch (error) {
+        console.error('Failed to load user session:', error);
+        await AsyncStorage.removeItem('userToken');
+        await AsyncStorage.removeItem('user');
       } finally {
         setIsLoading(false);
       }
     };
-    loadAuthData();
+
+    loadUserSession();
   }, []);
 
-  const handleAuthSuccess = async (authResponse: AuthResponse) => {
-    await setAuthToken(authResponse.token);
-    await setUserData(authResponse.user);
-    setToken(authResponse.token);
-    setUser(authResponse.user);
-    setError(null);
+  const login = async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { token: newToken, user: userData } = response.data;
+
+      await AsyncStorage.setItem('userToken', newToken);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+
+      setToken(newToken);
+      setUser(userData);
+      Alert.alert('Success', 'Logged in successfully!');
+    } catch (error: any) {
+      console.error('Login error:', error.response?.data || error.message);
+      Alert.alert('Login Failed', error.response?.data?.message || 'An unexpected error occurred.');
+      throw error; // Re-throw to allow screen to handle specific errors if needed
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const login = useCallback(async (payload: LoginPayload) => {
+  const register = async (email: string, password: string, name: string, university: string) => {
     setIsLoading(true);
-    setError(null);
     try {
-      const authResponse = await apiLogin(payload);
-      await handleAuthSuccess(authResponse);
-    } catch (e: any) {
-      const errorMessage = e.response?.data?.message || 'Login failed. Please check your credentials.';
-      setError(errorMessage);
-      console.error('Login error:', e);
-      throw new Error(errorMessage);
+      const response = await api.post('/auth/register', { email, password, name, university });
+      const { token: newToken, user: userData } = response.data;
+
+      await AsyncStorage.setItem('userToken', newToken);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+
+      setToken(newToken);
+      setUser(userData);
+      Alert.alert('Success', 'Registration successful! Please complete your onboarding.');
+    } catch (error: any) {
+      console.error('Registration error:', error.response?.data || error.message);
+      Alert.alert('Registration Failed', error.response?.data?.message || 'An unexpected error occurred.');
+      throw error;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
-  const register = useCallback(async (payload: RegisterPayload) => {
+  const logout = async () => {
     setIsLoading(true);
-    setError(null);
     try {
-      const authResponse = await apiRegister(payload);
-      await handleAuthSuccess(authResponse);
-    } catch (e: any) {
-      const errorMessage = e.response?.data?.message || 'Registration failed. Please try again.';
-      setError(errorMessage);
-      console.error('Registration error:', e);
-      throw new Error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const logout = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      await apiLogout();
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('user');
       setToken(null);
       setUser(null);
-    } catch (e: any) {
-      const errorMessage = e.message || 'Logout failed.';
-      setError(errorMessage);
-      console.error('Logout error:', e);
-      throw new Error(errorMessage);
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Logout Failed', 'Could not log out. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
-  const updateUser = useCallback(async (userData: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...userData };
-      setUser(updatedUser);
-      await setUserData(updatedUser); // Persist updated user data
-    }
-  }, [user]);
+  const updateUserOnboardingStatus = (status: boolean) => {
+    setUser(prevUser => {
+      if (prevUser) {
+        const updatedUser = { ...prevUser, onboardingComplete: status };
+        AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+        return updatedUser;
+      }
+      return null;
+    });
+  };
 
-  const value = React.useMemo(
-    () => ({
+  const updateUserProfile = (updates: Partial<User>) => {
+    setUser(prevUser => {
+      if (prevUser) {
+        const updatedUser = { ...prevUser, ...updates };
+        AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+        return updatedUser;
+      }
+      return null;
+    });
+  };
+
+  return (
+    <AuthContext.Provider value={{
       user,
       token,
       isLoading,
-      error,
       login,
       register,
       logout,
-      updateUser,
-    }),
-    [user, token, isLoading, error, login, register, logout, updateUser]
+      updateUserOnboardingStatus,
+      updateUserProfile,
+    }}>
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
