@@ -11,11 +11,11 @@ permissions:
   issues: write
   pull-requests: write
 
-# Global concurrency: only ONE agent-worker runs at a time.
-# Others queue up, preventing Gemini API rate limit (RPM/TPM/RPD) exhaustion
-# when the orchestrator creates 10+ issues simultaneously.
+# Concurrency per issue: prevents multiple parallel runs for the SAME issue,
+# but allows different issues to be implemented in parallel.
+# Rate limiting for the shared Gemini API is handled via retry-with-backoff in the script.
 concurrency:
-  group: agent-worker-global
+  group: agent-worker-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
