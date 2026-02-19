@@ -35,7 +35,7 @@ const WorkoutLogScreen: React.FC<WorkoutLogScreenProps> = ({ navigation, route }
         setIsLoadingInitialData(false);
       }
     }
-  }, [workoutId, navigation]);
+  }, [workoutId]);
 
   useEffect(() => {
     if (isEditMode) {
