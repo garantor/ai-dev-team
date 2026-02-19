@@ -1,6 +1,9 @@
 import pg from 'pg';
 
 const { Pool } = pg;
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is not defined in environment variables.');
+  process.exit(1);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

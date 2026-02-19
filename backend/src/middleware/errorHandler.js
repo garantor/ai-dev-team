@@ -1,3 +1,4 @@
+
 export const errorHandler = (err, req, res, next) => {
   console.error(err.stack);
 
@@ -10,3 +11,4 @@ export const errorHandler = (err, req, res, next) => {
     message: err.message || 'An unexpected error occurred.',
   });
 };
+
