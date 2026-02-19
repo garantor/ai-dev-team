@@ -62,7 +62,6 @@ const errorHandler = (err, req, res, next) => {
     error.message = err.message; // Ensure message is copied
 
     if (error.name === 'CastError') error = handleCastErrorDB(error);
-    if (error.code === 11000) error = handleDuplicateFieldsDB(error); // MongoDB duplicate key error
     if (error.name === 'ValidationError') error = handleValidationErrorDB(error);
     if (error.name === 'JsonWebTokenError') error = handleJWTError();
     if (error.name === 'TokenExpiredError') error = handleJWTExpiredError();
