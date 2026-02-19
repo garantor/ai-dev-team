@@ -1,8 +1,7 @@
 import axios from 'axios';
-import { getAuthToken, removeAuthToken, removeUserData } from './storage';
+import { Workout, WorkoutFormData } from '../types';
 
-// Replace with your actual backend URL
-const API_BASE_URL = 'http://localhost:3000/api'; // Example for local development
+const API_BASE_URL = 'http://localhost:3000/api'; // Replace with your backend API URL
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -11,40 +10,52 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add JWT token
-api.interceptors.request.use(
-  async (config) => {
-    const token = await getAuthToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+export const getWorkouts = async (): Promise<Workout[]> => {
+  try {
+    const response = await api.get('/workouts');
+    // Sort by date descending (newest first)
+    return response.data.sort((a: Workout, b: Workout) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  } catch (error) {
+    console.error('Error fetching workouts:', error);
+    throw new Error('Failed to fetch workouts. Please try again.');
   }
-);
+};
 
-// Response interceptor to handle token expiration or invalid tokens
-api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  async (error) => {
-    const originalRequest = error.config;
-    // Check if the error is 401 Unauthorized and it's not a login/register request
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      // Optionally, try to refresh token here if you have a refresh token mechanism
-      // For simplicity, we'll just log out the user.
-      console.warn('Unauthorized request. Logging out user.');
-      await removeAuthToken();
-      await removeUserData();
-      // You might want to navigate the user back to the login screen here
-      // This would typically be handled by a global state/context or navigation listener
-    }
-    return Promise.reject(error);
+export const getWorkoutById = async (id: string): Promise<Workout> => {
+  try {
+    const response = await api.get(`/workouts/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching workout with ID ${id}:`, error);
+    throw new Error(`Failed to fetch workout details for ID ${id}.`);
   }
-);
+};
 
-export default api;
+export const createWorkout = async (workoutData: WorkoutFormData): Promise<Workout> => {
+  try {
+    const response = await api.post('/workouts', { ...workoutData, date: new Date().toISOString() });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating workout:', error);
+    throw new Error('Failed to log workout. Please check your input.');
+  }
+};
+
+export const updateWorkout = async (id: string, workoutData: WorkoutFormData): Promise<Workout> => {
+  try {
+    const response = await api.put(`/workouts/${id}`, workoutData);
+    return response.data;
+  } catch (error) {
+    console.error(`Error updating workout with ID ${id}:`, error);
+    throw new Error(`Failed to update workout for ID ${id}.`);
+  }
+};
+
+export const deleteWorkout = async (id: string): Promise<void> => {
+  try {
+    await api.delete(`/workouts/${id}`);
+  } catch (error) {
+    console.error(`Error deleting workout with ID ${id}:`, error);
+    throw new Error(`Failed to delete workout for ID ${id}.`);
+  }
+};

@@ -1,157 +1,189 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, Alert, StyleSheet } from 'react-native';
-import { StackScreenProps } from '@react-navigation/stack';
-import { Workout, RootStackParamList } from '@types/workout';
-import { getWorkoutById } from '@api/workoutApi';
-import { globalStyles } from '@styles/globalStyles';
-import { useWorkouts } from '@hooks/useWorkouts';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { useRoute, useNavigation, RouteProp, NativeStackNavigationProp, useFocusEffect } from '@react-navigation/native';
+import { globalStyles } from '../styles/globalStyles';
+import { getWorkoutById, deleteWorkout } from '../utils/api';
+import { RootStackParamList, Workout } from '../types';
+import ErrorMessage from '../components/ErrorMessage';
 
-type WorkoutDetailScreenProps = StackScreenProps<RootStackParamList, 'WorkoutDetail'>;
+type WorkoutDetailScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutDetail'>;
+type WorkoutDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
 
-const WorkoutDetailScreen: React.FC<WorkoutDetailScreenProps> = ({ navigation, route }) => {
+const WorkoutDetailScreen: React.FC = () => {
+  const route = useRoute<WorkoutDetailScreenRouteProp>();
+  const navigation = useNavigation<WorkoutDetailScreenNavigationProp>();
   const { workoutId } = route.params;
-  const [workout, setWorkout] = useState<Workout | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const { removeWorkout, isLoading: isDeleting } = useWorkouts();
+  const [workout, setWorkout] = useState<Workout | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchWorkoutDetails = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getWorkoutById(workoutId);
-      setWorkout(data);
+      const fetchedWorkout = await getWorkoutById(workoutId);
+      setWorkout(fetchedWorkout);
     } catch (err: any) {
-      console.error('Failed to fetch workout details:', err);
       setError(err.message || 'Failed to load workout details.');
-      Alert.alert('Error', err.response?.message || 'Failed to load workout details.');
-      navigation.goBack(); // Go back if workout not found or error
     } finally {
       setIsLoading(false);
     }
-  }, [workoutId, navigation]);
+  }, [workoutId]);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchWorkoutDetails(); // Refresh data when screen comes into focus
-    });
-    return unsubscribe;
-  }, [navigation, fetchWorkoutDetails]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchWorkoutDetails();
+    }, [fetchWorkoutDetails])
+  );
 
-  const handleEdit = useCallback(() => {
-    navigation.navigate('WorkoutLog', { workoutId: workout?.id });
-  }, [navigation, workout]);
-
-  const handleDelete = useCallback(() => {
-    if (!workout) return;
-
+  const handleDelete = () => {
     Alert.alert(
       'Delete Workout',
-      `Are you sure you want to delete your ${workout.type} workout on ${new Date(workout.date).toLocaleDateString()}?`,
+      'Are you sure you want to delete this workout? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
+            setIsLoading(true);
+            setError(null);
             try {
-              await removeWorkout(workout.id);
-              navigation.goBack(); // Go back to list after successful deletion
-            } catch (err) {
-              // Error handled by useWorkouts hook, Alert already shown
+              await deleteWorkout(workoutId);
+              Alert.alert('Success', 'Workout deleted successfully!');
+              navigation.goBack(); // Go back to history screen
+            } catch (err: any) {
+              setError(err.message || 'Failed to delete workout.');
+            } finally {
+              setIsLoading(false);
             }
           },
         },
-      ],
-      { cancelable: true }
+      ]
     );
-  }, [workout, navigation, removeWorkout]);
-
-  const formatDate = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) +
-           ' at ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
   if (isLoading) {
     return (
       <View style={globalStyles.loadingContainer}>
         <ActivityIndicator size="large" color="#007bff" />
-        <Text>Loading workout details...</Text>
+        <Text style={{ marginTop: 10 }}>Loading workout details...</Text>
       </View>
     );
   }
 
-  if (error || !workout) {
+  if (error) {
     return (
-      <View style={globalStyles.loadingContainer}>
-        <Text style={globalStyles.errorText}>{error || 'Workout not found.'}</Text>
-        <TouchableOpacity style={globalStyles.button} onPress={() => navigation.goBack()}>
-          <Text style={globalStyles.buttonText}>Go Back</Text>
+      <View style={globalStyles.container}>
+        <ErrorMessage message={error} />
+        <TouchableOpacity style={globalStyles.button} onPress={fetchWorkoutDetails}>
+          <Text style={globalStyles.buttonText}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  return (
-    <View style={globalStyles.container}>
-      <Text style={globalStyles.title}>{workout.type} Workout</Text>
+  if (!workout) {
+    return (
+      <View style={globalStyles.container}>
+        <Text style={globalStyles.errorText}>Workout not found.</Text>
+      </View>
+    );
+  }
 
+  const formattedDate = new Date(workout.date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return (
+    <ScrollView style={globalStyles.container}>
       <View style={styles.detailCard}>
-        <Text style={styles.detailText}><Text style={styles.detailLabel}>Date:</Text> {formatDate(workout.date)}</Text>
-        <Text style={styles.detailText}><Text style={styles.detailLabel}>Duration:</Text> {workout.duration} minutes</Text>
-        <Text style={styles.detailText}><Text style={styles.detailLabel}>Calories Burned:</Text> {workout.caloriesBurned}</Text>
-        {workout.notes && <Text style={styles.detailText}><Text style={styles.detailLabel}>Notes:</Text> {workout.notes}</Text>}
+        <Text style={styles.detailTitle}>{workout.type}</Text>
+        <Text style={styles.detailLabel}>Date: <Text style={styles.detailValue}>{formattedDate}</Text></Text>
+        <Text style={styles.detailLabel}>Duration: <Text style={styles.detailValue}>{workout.duration} minutes</Text></Text>
+        <Text style={styles.detailLabel}>Calories Burned: <Text style={styles.detailValue}>{workout.caloriesBurned}</Text></Text>
+        {workout.notes && (
+          <View style={styles.notesContainer}>
+            <Text style={styles.detailLabel}>Notes:</Text>
+            <Text style={styles.detailValue}>{workout.notes}</Text>
+          </View>
+        )}
       </View>
 
-      <TouchableOpacity
-        style={globalStyles.button}
-        onPress={handleEdit}
-        testID="edit-workout-button"
-      >
-        <Text style={globalStyles.buttonText}>Edit Workout</Text>
-      </TouchableOpacity>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[globalStyles.button, styles.editButton]}
+          onPress={() => navigation.navigate('WorkoutEdit', { workoutId: workout.id })}
+        >
+          <Text style={globalStyles.buttonText}>Edit Workout</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[globalStyles.dangerButton, isDeleting && styles.disabledButton]}
-        onPress={handleDelete}
-        disabled={isDeleting}
-        testID="delete-workout-button"
-      >
-        {isDeleting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
+        <TouchableOpacity
+          style={[globalStyles.button, styles.deleteButton]}
+          onPress={handleDelete}
+        >
           <Text style={globalStyles.buttonText}>Delete Workout</Text>
-        )}
-      </TouchableOpacity>
-    </View>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   detailCard: {
     backgroundColor: '#fff',
-    padding: 20,
     borderRadius: 10,
+    padding: 20,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 4,
     elevation: 3,
   },
-  detailLabel: {
+  detailTitle: {
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#333',
+    marginBottom: 15,
+    textAlign: 'center',
   },
-  detailText: {
+  detailLabel: {
     fontSize: 18,
-    marginBottom: 10,
+    fontWeight: '600',
     color: '#555',
+    marginBottom: 8,
   },
-  disabledButton: {
-    opacity: 0.7,
+  detailValue: {
+    fontSize: 18,
+    fontWeight: '400',
+    color: '#333',
+  },
+  notesContainer: {
+    marginTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 15,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 20,
+  },
+  editButton: {
+    flex: 1,
+    marginRight: 10,
+    backgroundColor: '#28a745',
+  },
+  deleteButton: {
+    flex: 1,
+    marginLeft: 10,
+    backgroundColor: '#dc3545',
   },
 });
 
