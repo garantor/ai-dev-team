@@ -3,12 +3,22 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const requiredEnvVars = ['DB_USER', 'DB_HOST', 'DB_DATABASE', 'DB_PASSWORD', 'DB_PORT'];
+const missingEnvVars = requiredEnvVars.filter((name) => !process.env[name]);
+
+if (missingEnvVars.length > 0) {
+  console.error(
+    `Missing required database configuration environment variables: ${missingEnvVars.join(', ')}`
+  );
+  throw new Error('Database configuration error: missing environment variables');
+}
+
 const pool = new pg.Pool({
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
   database: process.env.DB_DATABASE,
   password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  port: Number(process.env.DB_PORT),
 });
 
 export const initDb = async () => {
