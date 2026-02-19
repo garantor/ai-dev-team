@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ActivityIndicator, Alert } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
-import { Workout, RootStackParamList } from '../types/workout';
-import WorkoutForm from '../components/WorkoutForm';
+import { Workout, RootStackParamList } from '@types/workout';
+import WorkoutForm from '@components/WorkoutForm';
 import { getWorkoutById } from '../api/workoutApi';
 import { globalStyles } from '../styles/globalStyles';
-import { useWorkouts } from '../hooks/useWorkouts';
+import { useWorkouts } from '@hooks/useWorkouts';
 
 type WorkoutLogScreenProps = StackScreenProps<RootStackParamList, 'WorkoutLog'>;
 
