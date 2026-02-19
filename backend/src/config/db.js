@@ -1,47 +1,34 @@
 import pg from 'pg';
 
 const { Pool } = pg;
-
-// Ensure DATABASE_URL is set in .env
 if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL is not defined in environment variables.');
   process.exit(1);
-}
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Optional: Add SSL configuration if connecting to a remote database like Heroku Postgres
-  // ssl: {
-  //   rejectUnauthorized: false
-  // }
 });
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
-});
-
-// Test database connection
-(async () => {
+export const connectDB = async () => {
   try {
-    await pool.query('SELECT 1');
-    console.log('PostgreSQL database connected successfully.');
-    // Create users table if it doesn't exist
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE IF NOT EXISTS workouts (
         id SERIAL PRIMARY KEY,
-        firebase_uid VARCHAR(255) UNIQUE NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        university VARCHAR(255),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        user_id INTEGER NOT NULL,
+        type VARCHAR(255) NOT NULL,
+        duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
+        calories_burned INTEGER CHECK (calories_burned >= 0),
+        notes TEXT,
+        workout_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    console.log('Users table checked/created.');
+    console.log('PostgreSQL connected and table ensured.');
   } catch (err) {
-    console.error('Error connecting to PostgreSQL or creating table:', err);
+    console.error('Database connection or table creation error:', err.message);
     process.exit(1);
   }
-})();
+};
 
-export default pool;
+export const query = (text, params) => pool.query(text, params);

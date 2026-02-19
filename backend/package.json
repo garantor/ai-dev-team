@@ -1,12 +1,15 @@
 {
-  "name": "backend",
+
+
+  "name": "workout-tracking-api",
   "version": "1.0.0",
-  "description": "Backend for user authentication and management",
+  "description": "Workout Tracking API for authenticated users.",
   "main": "src/server.js",
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+
+    "dev": "node --watch src/server.js",
     "test": "vitest run --dir tests",
     "test:watch": "vitest --dir tests"
   },
@@ -28,3 +31,4 @@
     "vitest": "^1.6.0"
   }
 }
+
