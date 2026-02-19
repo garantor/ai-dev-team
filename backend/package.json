@@ -1,0 +1,26 @@
+{
+  "name": "workout-tracking-api",
+  "version": "1.0.0",
+  "description": "Workout Tracking API for authenticated users.",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "vitest run --dir tests",
+    "test:watch": "vitest --dir tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "joi": "^17.13.1",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0",
+    "vitest": "^1.6.0"
+  }
+}
