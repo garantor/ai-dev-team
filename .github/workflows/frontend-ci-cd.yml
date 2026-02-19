@@ -1,0 +1,144 @@
+name: Frontend CI/CD Pipeline
+
+on: 
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  NODE_VERSION: '18'
+  # Fastlane environment variables (if used for deployment)
+  FASTLANE_APPLE_ID: ${{ secrets.FASTLANE_APPLE_ID }} # Apple ID for App Store Connect
+  FASTLANE_APP_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APP_SPECIFIC_PASSWORD }} # App-specific password
+  FASTLANE_TEAM_ID: ${{ secrets.FASTLANE_TEAM_ID }} # Apple Developer Team ID
+  FASTLANE_PACKAGE_NAME: 'com.yourcompany.yourapp' # Android package name
+  FASTLANE_JSON_KEY_FILE: ${{ secrets.FASTLANE_JSON_KEY_FILE }} # Base64 encoded Google Play service account key
+
+jobs:
+  lint_and_test:
+    name: Lint and Test Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint # Assumes 'npm run lint' script exists in frontend's package.json
+
+      - name: Run unit tests
+        run: npm test # Assumes 'npm test' script exists in frontend's package.json
+
+  build_react_native:
+    name: Build React Native App
+    runs-on: macos-latest # macOS is required for iOS builds
+    needs: lint_and_test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install CocoaPods (for iOS)
+        run: gem install cocoapods
+
+      - name: Build iOS App
+        env:
+          # Required for Xcode build, replace with your actual values
+          IOS_SCHEME: 'YourApp'
+          IOS_CONFIGURATION: 'Release'
+          IOS_BUNDLE_IDENTIFIER: 'com.yourcompany.yourapp'
+          IOS_TEAM_ID: ${{ env.FASTLANE_TEAM_ID }}
+          # For automatic code signing, if not using Fastlane match
+          # PROVISIONING_PROFILE_SPECIFIER: 'Your Provisioning Profile Name'
+          # DEVELOPMENT_TEAM: ${{ env.FASTLANE_TEAM_ID }}
+        run: |
+          chmod +x integration/frontend/scripts/build_app.sh
+          integration/frontend/scripts/build_app.sh ios
+
+      - name: Build Android App
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_PATH_BASE64 }} # Base64 encoded keystore file
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          # Decode keystore file if provided as base64 secret
+          if [ -n "$ANDROID_KEYSTORE_PATH" ]; then
+            echo "$ANDROID_KEYSTORE_PATH" | base64 --decode > android/app/upload-keystore.jks
+          fi
+          chmod +x integration/frontend/scripts/build_app.sh
+          integration/frontend/scripts/build_app.sh android
+
+      - name: Upload iOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app-build
+          path: ./ios/build/Release-iphoneos/*.ipa # Adjust path as needed
+
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-app-build
+          path: ./android/app/build/outputs/apk/release/*.apk # Adjust path as needed
+
+  deploy_to_test_tracks:
+    name: Deploy to Internal Testing Tracks
+    runs-on: macos-latest # macOS is often preferred for Fastlane
+    needs: build_react_native
+    environment: test-tracks # Optional: GitHub environment for deployments
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby (for Fastlane)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+          bundler-cache: true
+
+      - name: Install Fastlane (if not in Gemfile)
+        run: gem install fastlane
+
+      - name: Deploy iOS to TestFlight
+        env:
+          FASTLANE_USER: ${{ env.FASTLANE_APPLE_ID }}
+          FASTLANE_PASSWORD: ${{ env.FASTLANE_APP_SPECIFIC_PASSWORD }}
+          FASTLANE_TEAM_ID: ${{ env.FASTLANE_TEAM_ID }}
+          # Ensure the .ipa artifact is downloaded first if not built in this job
+        run: |
+          chmod +x integration/frontend/scripts/deploy_test_track.sh
+          integration/frontend/scripts/deploy_test_track.sh ios
+
+      - name: Deploy Android to Google Play Internal Test Track
+        env:
+          FASTLANE_USER: ${{ env.FASTLANE_APPLE_ID }}
+          FASTLANE_JSON_KEY_FILE_BASE64: ${{ env.FASTLANE_JSON_KEY_FILE }}
+          FASTLANE_PACKAGE_NAME: ${{ env.FASTLANE_PACKAGE_NAME }}
+          # Ensure the .apk artifact is downloaded first if not built in this job
+        run: |
+          # Decode Google Play service account key
+          if [ -n "$FASTLANE_JSON_KEY_FILE_BASE64" ]; then
+            echo "$FASTLANE_JSON_KEY_FILE_BASE64" | base64 --decode > google_play_key.json
+            export GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/google_play_key.json
+          fi
+          chmod +x integration/frontend/scripts/deploy_test_track.sh
+          integration/frontend/scripts/deploy_test_track.sh android
