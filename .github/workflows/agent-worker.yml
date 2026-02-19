@@ -1,4 +1,4 @@
-name: Agent Worker
+name: Agent Worker - Implement Issue
 
 on:
   issue_comment:
@@ -11,30 +11,46 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: agent-worker-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   implement:
     # Trigger on:
-    #   1. Issue gets the 'ready' label (automatic)
+    #   1. Issue gets the 'ready' label (automatic from orchestrator)
     #   2. Someone comments '/implement' on an issue (manual fallback)
     if: |
       (github.event_name == 'issues' && github.event.label.name == 'ready') ||
       (github.event_name == 'issue_comment' && github.event.comment.body == '/implement')
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
-      - name: Run Implementation Agent
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Implement Issue
         uses: actions/github-script@v7
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         with:
           github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           script: |
+            const { execSync } = require('child_process');
+            const fs = require('fs');
+            const path = require('path');
+
             const issue = context.payload.issue;
             const issueNumber = issue.number;
-            const body = issue.body || '';
-            const title = issue.title;
+            const issueBody = issue.body || '';
+            const issueTitle = issue.title;
 
             // --- Idempotency: skip if we already started work ---
             const existingComments = await github.rest.issues.listComments({
@@ -43,25 +59,23 @@ jobs:
               issue_number: issueNumber
             });
             const alreadyStarted = existingComments.data.some(c =>
-              c.body.includes('**Agent Worker** is implementing') && c.user.login === 'github-actions[bot]'
+              c.body.includes('🔨 **Agent Worker** is generating code') &&
+              c.user.login === 'github-actions[bot]'
             );
             if (alreadyStarted) {
-              console.log(`Agent Worker already started for issue #${issueNumber}, skipping.`);
+              console.log(`Agent Worker already started for #${issueNumber}, skipping.`);
               return;
             }
 
             // --- Determine Agent Type ---
             const labels = issue.labels.map(l => l.name);
-            const agentType = labels.find(l => ['backend', 'frontend', 'integration', 'qa'].includes(l)) || 'developer';
+            const agentType = labels.find(l =>
+              ['backend', 'frontend', 'integration', 'qa'].includes(l)
+            ) || 'developer';
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              body: `🤖 **Agent Worker** is implementing this **${agentType}** task...\n\nI will analyze the requirements and open a Pull Request shortly.`
-            });
+            console.log(`Agent: ${agentType} | Issue #${issueNumber}: ${issueTitle}`);
 
-            // --- Add in-progress label ---
+            // --- Update labels: ready → in-progress ---
             try {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
@@ -76,23 +90,202 @@ jobs:
                 name: 'ready'
               });
             } catch (e) {
-              console.log('Label update error (non-fatal):', e.message);
+              console.log('Label update (non-fatal):', e.message);
             }
 
-            // --- Implementation placeholder ---
-            // In a full implementation, this section would:
-            //   1. Call Gemini API with the issue body as context
-            //   2. Generate code files for the agent type
-            //   3. Create a branch, commit files, and open a PR
-            //
-            // For now, we log and notify.
-            console.log(`Agent type: ${agentType}`);
-            console.log(`Issue title: ${title}`);
-            console.log(`Issue body: ${body.substring(0, 500)}`);
-
+            // --- Post "working" comment ---
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `📋 **${agentType.toUpperCase()} Agent** has analyzed issue #${issueNumber}.\n\n**Next step:** An AI-powered implementation will be generated and submitted as a Pull Request.\n\n> If the automated agent does not open a PR within 10 minutes, a human developer should pick up this task.`
+              body: `🔨 **Agent Worker** is generating code for this **${agentType}** task...\n\nUsing AI to analyze requirements and create implementation files. A Pull Request will be opened when ready.`
             });
+
+            // --- Build the AI prompt ---
+            const agentInstructions = {
+              backend: `You are a Backend Engineer. Generate Node.js/Express code.
+            Create files under the backend/ directory.
+            Include: routes, controllers, models, middleware, and tests.
+            Use ES modules (import/export). Include a package.json if one doesn't exist.`,
+              frontend: `You are a Frontend Engineer. Generate React/TypeScript code.
+            Create files under the frontend/ directory.
+            Include: components, hooks, styles, and tests.
+            Use functional components with hooks. Include a package.json if one doesn't exist.`,
+              integration: `You are an Integration Engineer. Generate API client code.
+            Create files under the integration/ directory.
+            Include: API clients, type definitions, and contract tests.
+            Use TypeScript for type safety.`,
+              qa: `You are a QA Engineer. Generate test code.
+            Create files under the qa/ directory.
+            Include: unit tests, integration tests, and e2e test scaffolding.
+            Use Vitest or Jest as the test runner.`,
+              developer: `You are a Full-Stack Developer. Generate code in the appropriate directory.`
+            };
+
+            const prompt = `${agentInstructions[agentType] || agentInstructions.developer}
+
+            TASK TITLE: ${issueTitle}
+
+            TASK REQUIREMENTS:
+            ${issueBody}
+
+            IMPORTANT INSTRUCTIONS:
+            1. Generate COMPLETE, WORKING code files. No placeholders or TODOs.
+            2. Include proper error handling and input validation.
+            3. Include at least one test file.
+            4. Follow Node.js/JavaScript best practices.
+
+            RESPONSE FORMAT:
+            You MUST respond with ONLY a valid JSON array of file objects, no markdown, no explanation.
+            Each object has "path" (relative file path) and "content" (complete file content).
+            Example:
+            [
+              {"path": "backend/src/index.js", "content": "import express from 'express';\\nconst app = express();\\n..."},
+              {"path": "backend/package.json", "content": "{\\n  \\"name\\": \\"backend\\"\\n}"},
+              {"path": "backend/tests/index.test.js", "content": "import { describe, it } from 'vitest';\\n..."}
+            ]
+
+            Generate the files now:`;
+
+            // --- Call Gemini API ---
+            const apiKey = process.env.GOOGLE_API_KEY;
+            if (!apiKey) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `⚠️ **Agent Worker** cannot generate code: \`GOOGLE_API_KEY\` secret is not configured.\n\nPlease add it in **Settings → Secrets → Actions** and then comment \`/implement\` to retry.`
+              });
+              return;
+            }
+
+            const requestBody = JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                temperature: 0.3,
+                topK: 40,
+                topP: 0.95,
+                maxOutputTokens: 16384
+              }
+            });
+
+            let responseText;
+            try {
+              const curlCmd = `curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}" -H "Content-Type: application/json" -d '${requestBody.replace(/'/g, "'\\''")}'`;
+              const rawResponse = execSync(curlCmd, { maxBuffer: 50 * 1024 * 1024, encoding: 'utf-8' });
+              const parsed = JSON.parse(rawResponse);
+
+              if (parsed.error) {
+                throw new Error(parsed.error.message || JSON.stringify(parsed.error));
+              }
+
+              responseText = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (!responseText) {
+                throw new Error('Empty response from Gemini API');
+              }
+            } catch (err) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `❌ **Agent Worker** failed to generate code.\n\n**Error:** ${err.message}\n\nYou can retry by commenting \`/implement\`.`
+              });
+              return;
+            }
+
+            // --- Parse the generated files ---
+            let files;
+            try {
+              // Strip markdown code fences if present
+              let cleaned = responseText.trim();
+              if (cleaned.startsWith('```')) {
+                cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+              }
+              files = JSON.parse(cleaned);
+
+              if (!Array.isArray(files) || files.length === 0) {
+                throw new Error('Response is not a valid array of files');
+              }
+            } catch (parseErr) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `⚠️ **Agent Worker** generated a response but failed to parse it as file definitions.\n\n**Parse Error:** ${parseErr.message}\n\nRetry with \`/implement\` or pick up this task manually.\n\n<details><summary>Raw AI Response (first 2000 chars)</summary>\n\n\`\`\`\n${responseText.substring(0, 2000)}\n\`\`\`\n</details>`
+              });
+              return;
+            }
+
+            // --- Create branch and commit files ---
+            const branchName = `agent/${agentType}-issue-${issueNumber}`;
+
+            try {
+              // Configure git
+              execSync('git config user.name "github-actions[bot]"');
+              execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
+
+              // Create and checkout branch
+              execSync(`git checkout -b ${branchName}`);
+
+              // Write each file
+              const createdFiles = [];
+              for (const file of files) {
+                if (!file.path || !file.content) {
+                  console.log('Skipping invalid file entry:', JSON.stringify(file).substring(0, 100));
+                  continue;
+                }
+
+                // Security: prevent path traversal
+                const safePath = path.normalize(file.path).replace(/^(\.\.[\/\\])+/, '');
+                const fullPath = path.resolve(process.cwd(), safePath);
+
+                // Ensure directory exists
+                const dir = path.dirname(fullPath);
+                fs.mkdirSync(dir, { recursive: true });
+
+                // Write file
+                fs.writeFileSync(fullPath, file.content, 'utf-8');
+                createdFiles.push(safePath);
+                console.log(`Created: ${safePath}`);
+              }
+
+              if (createdFiles.length === 0) {
+                throw new Error('No valid files were generated');
+              }
+
+              // Stage, commit, push
+              execSync('git add -A');
+              execSync(`git commit -m "feat(${agentType}): implement #${issueNumber} - ${issueTitle.replace(/"/g, '\\"').substring(0, 60)}"`);
+              execSync(`git push origin ${branchName}`);
+
+              console.log(`Pushed branch: ${branchName} with ${createdFiles.length} files`);
+
+              // --- Open Pull Request ---
+              const fileList = createdFiles.map(f => `- \`${f}\``).join('\n');
+
+              const pr = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[${agentType.toUpperCase()}] Implement #${issueNumber}: ${issueTitle.substring(0, 80)}`,
+                head: branchName,
+                base: 'main',
+                body: `## 🤖 Auto-generated by Agent Worker\n\n**Closes #${issueNumber}**\n\n### Agent Type\n${agentType.toUpperCase()}\n\n### Files Created\n${fileList}\n\n### Summary\nThis PR was automatically generated from issue #${issueNumber} by the **Agent Worker** pipeline.\n\n### Checklist\n- [x] Code generated from issue requirements\n- [ ] Code review by human\n- [ ] Tests passing\n- [ ] Ready to merge`
+              });
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `✅ **Agent Worker** has opened **PR #${pr.data.number}**: [${pr.data.title}](${pr.data.html_url})\n\n**${createdFiles.length} files** were generated and committed to branch \`${branchName}\`.\n\n${fileList}\n\nPlease review the PR and merge when ready. 🚀`
+              });
+
+              console.log(`Opened PR #${pr.data.number}`);
+
+            } catch (gitErr) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `❌ **Agent Worker** failed during git/PR operations.\n\n**Error:** ${gitErr.message}\n\nRetry with \`/implement\` or pick up this task manually.`
+              });
+            }
