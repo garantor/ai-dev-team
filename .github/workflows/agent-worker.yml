@@ -267,8 +267,9 @@ jobs:
               execSync('git config user.name "github-actions[bot]"');
               execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
 
-              // Create and checkout branch
-              execSync(`git checkout -b ${branchName}`);
+              // Fetch latest main and create branch from it (prevents stale-base conflicts)
+              execSync('git fetch origin main');
+              execSync(`git checkout -b ${branchName} origin/main`);
 
               // Write each file
               const createdFiles = [];
@@ -299,7 +300,16 @@ jobs:
               // Stage, commit, push
               execSync('git add -A');
               execSync(`git commit -m "feat(${agentType}): implement #${issueNumber} - ${issueTitle.replace(/"/g, '\\"').substring(0, 60)}"`);
-              execSync(`git push origin ${branchName}`);
+
+              // Push with rebase retry in case another agent pushed to main in the meantime
+              try {
+                execSync(`git push origin ${branchName}`);
+              } catch (pushErr) {
+                console.log('Push failed, attempting rebase on latest main...');
+                execSync('git fetch origin main');
+                execSync('git rebase origin/main');
+                execSync(`git push origin ${branchName}`);
+              }
 
               console.log(`Pushed branch: ${branchName} with ${createdFiles.length} files`);
 
