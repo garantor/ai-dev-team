@@ -9,7 +9,7 @@ on:
 permissions:
   issues: write
   pull-requests: write
-  contents: read
+  contents: write
 
 jobs:
   coordinate:
@@ -18,6 +18,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Handle issue closed (dependency resolution)
         if: github.event_name == 'issues' && github.event.action == 'closed'
@@ -332,6 +335,17 @@ jobs:
                 console.log(`Error closing issue #${issueNumber}: ${error.message}`);
               }
             }
+      - name: Auto-rebase open agent PRs
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+        uses: actions/github-script@v7
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          MERGED_PR_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          script: |
+            const { autoRebaseOpenPRs } = require('./scripts/auto-rebase');
+            await autoRebaseOpenPRs(github, context);
 
       - name: Inter-agent communication
         if: github.event_name == 'issues' && github.event.action == 'closed'
