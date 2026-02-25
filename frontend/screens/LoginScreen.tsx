@@ -1,25 +1,27 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import CustomInput from '@components/CustomInput';
-import CustomButton from '@components/CustomButton';
-import LoadingOverlay from '@components/LoadingOverlay';
-import { globalStyles } from '@styles/globalStyles';
-import { useAuth } from '@hooks/useAuth';
+import { View, Text, StyleSheet, SafeAreaView, Alert, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Input from '../components/Input';
+import Button from '../components/Button';
+import { useAuth } from '../hooks/useAuth';
+import { commonStyles } from '../styles/commonStyles';
+import { theme } from '../styles/theme';
 
-type RootStackParamList = {
+type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
-  Onboarding: undefined;
-  Home: undefined; // Assuming a Home screen after onboarding
+  Welcome: undefined;
 };
 
-type LoginScreenProps = NativeStackScreenProps<RootStackParamList, 'Login'>;
+type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
-  const { login, isLoading, error, user } = useAuth();
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+const LoginScreen: React.FC = () => {
+  const navigation = useNavigation<LoginScreenNavigationProp>();
+  const { login, isLoading } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
@@ -31,13 +33,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     if (!email.trim()) {
       setEmailError('Email is required.');
       isValid = false;
-    } else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
+    } else if (!/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
       setEmailError('Invalid email format.');
       isValid = false;
     }
 
     if (!password.trim()) {
       setPasswordError('Password is required.');
+      isValid = false;
+    } else if (password.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
       isValid = false;
     }
 
@@ -50,28 +55,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     }
 
     try {
-      await login({ email, password });
-      // Check if user has completed onboarding
-      if (user?.fitnessGoals && user?.fitnessLevel) {
-        navigation.replace('Home'); // Navigate to main app if onboarding done
-      } else {
-        navigation.replace('Onboarding'); // Navigate to onboarding if not done
-      }
-    } catch (err: any) {
-      // Error is already set by useAuth hook, display via Alert or Text component
-      Alert.alert('Login Failed', error || 'An unexpected error occurred.');
+      await login(email, password);
+      // Navigation handled by App.tsx based on auth state
+    } catch (error) {
+      // Error message already displayed by useAuth hook
+      console.error('Login failed in component:', error);
     }
   };
 
   return (
-    <View style={globalStyles.container}>
-      <LoadingOverlay isVisible={isLoading} message="Logging in..." />
-      <View style={globalStyles.formContainer}>
-        <Text style={globalStyles.title}>Login</Text>
+    <SafeAreaView style={commonStyles.container}>
+      <View style={commonStyles.authContent}>
+        <Text style={commonStyles.authTitle}>Welcome Back!</Text>
+        <Text style={commonStyles.authSubtitle}>Log in to continue your fitness journey.</Text>
 
-        {error && <Text style={globalStyles.errorText}>{error}</Text>}
-
-        <CustomInput
+        <Input
           label="Email"
           placeholder="Enter your email"
           keyboardType="email-address"
@@ -79,28 +77,34 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           value={email}
           onChangeText={setEmail}
           error={emailError}
+          onBlur={() => setEmailError(null)} // Clear error on blur
         />
-        <CustomInput
+        <Input
           label="Password"
           placeholder="Enter your password"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
           error={passwordError}
+          onBlur={() => setPasswordError(null)} // Clear error on blur
         />
 
-        <CustomButton
+        <Button
           title="Login"
           onPress={handleLogin}
           loading={isLoading}
           disabled={isLoading}
+          style={commonStyles.authButton}
         />
 
-        <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-          <Text style={globalStyles.linkText}>Don't have an account? Register</Text>
-        </TouchableOpacity>
+        <View style={commonStyles.authFooter}>
+          <Text style={commonStyles.authFooterText}>Don't have an account?</Text>
+          <TouchableOpacity onPress={() => navigation.replace('Register')} disabled={isLoading}>
+            <Text style={commonStyles.authFooterLink}>Register</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 

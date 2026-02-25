@@ -1,65 +1,93 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import CustomButton from '@components/CustomButton';
-import { globalStyles } from '@styles/globalStyles';
-import { useAuth } from '@hooks/useAuth';
+import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import { useAuth } from '../hooks/useAuth';
+import Button from '../components/Button';
+import { commonStyles } from '../styles/commonStyles';
+import { theme } from '../styles/theme';
 
-type RootStackParamList = {
-  Home: undefined;
-  Login: undefined;
-};
-
-type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
-
-const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
+const HomeScreen: React.FC = () => {
   const { user, logout, isLoading } = useAuth();
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigation.replace('Login'); // Navigate back to login after logout
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Optionally show an alert
-    }
-  };
-
   return (
-    <View style={globalStyles.container}>
-      <View style={globalStyles.formContainer}>
-        <Text style={globalStyles.title}>Welcome, {user?.name || 'User'}!</Text>
-        <Text style={styles.infoText}>Email: {user?.email}</Text>
-        <Text style={styles.infoText}>University: {user?.university}</Text>
+    <SafeAreaView style={commonStyles.container}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Welcome, {user?.name || user?.email}!</Text>
+        <Text style={styles.subtitle}>Your fitness journey starts here.</Text>
+
         {user?.fitnessGoals && user.fitnessGoals.length > 0 && (
-          <Text style={styles.infoText}>Goals: {user.fitnessGoals.join(', ')}</Text>
-        )}
-        {user?.fitnessLevel && (
-          <Text style={styles.infoText}>Level: {user.fitnessLevel.charAt(0).toUpperCase() + user.fitnessLevel.slice(1)}</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.cardTitle}>Your Goals:</Text>
+            {user.fitnessGoals.map((goal, index) => (
+              <Text key={index} style={styles.cardText}>- {goal}</Text>
+            ))}
+          </View>
         )}
 
-        <CustomButton
+        {user?.fitnessLevel && (
+          <View style={styles.infoCard}>
+            <Text style={styles.cardTitle}>Your Fitness Level:</Text>
+            <Text style={styles.cardText}>{user.fitnessLevel}</Text>
+          </View>
+        )}
+
+        <Button
           title="Logout"
-          onPress={handleLogout}
+          onPress={logout}
           loading={isLoading}
-          disabled={isLoading}
-          variant="secondary"
           style={styles.logoutButton}
+          variant="secondary"
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  infoText: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 10,
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.large,
+  },
+  title: {
+    fontSize: theme.fontSizes.h1,
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.small,
     textAlign: 'center',
   },
+  subtitle: {
+    fontSize: theme.fontSizes.medium,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.large * 2,
+    textAlign: 'center',
+  },
+  infoCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.medium,
+    padding: theme.spacing.large,
+    marginBottom: theme.spacing.large,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: theme.fontSizes.large,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginBottom: theme.spacing.small,
+  },
+  cardText: {
+    fontSize: theme.fontSizes.medium,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.xsmall,
+  },
   logoutButton: {
-    marginTop: 30,
+    marginTop: theme.spacing.large * 2,
+    width: '80%',
   },
 });
 

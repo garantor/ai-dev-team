@@ -1,40 +1,46 @@
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
-import { globalStyles } from '@styles/globalStyles';
+import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { theme } from '../styles/theme';
 
 interface LoadingOverlayProps {
-  isVisible: boolean;
   message?: string;
 }
 
-const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, message = 'Loading...' }) => {
-  if (!isVisible) {
-    return null;
-  }
-
+const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message = 'Loading...' }) => {
   return (
-    <View style={globalStyles.loadingOverlay}>
-      <View style={styles.loadingBox}>
-        <ActivityIndicator size="large" color="#007bff" />
-        {message && <Text style={styles.loadingText}>{message}</Text>}
+    <View style={styles.overlay}>
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.message}>{message}</Text>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  loadingBox: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    alignItems: 'center',
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
-    minWidth: 150,
+    alignItems: 'center',
+    zIndex: 9999,
   },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#333',
+  container: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.medium,
+    padding: theme.spacing.large,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  message: {
+    marginTop: theme.spacing.medium,
+    fontSize: theme.fontSizes.medium,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
   },
 });
 
