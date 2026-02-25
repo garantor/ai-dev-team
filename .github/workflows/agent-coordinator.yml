@@ -9,18 +9,25 @@ on:
 permissions:
   issues: write
   pull-requests: write
-  contents: read
+  contents: write
 
 jobs:
   coordinate:
     runs-on: ubuntu-latest
-    
+
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
       - name: Handle issue closed (dependency resolution)
         if: github.event_name == 'issues' && github.event.action == 'closed'
         uses: actions/github-script@v7
         with:
           script: |
+            const { updateOrchestratorProgress } = require('./scripts/orchestrator-progress-helper');
             const closedIssue = context.payload.issue.number;
             
             console.log(`Issue #${closedIssue} was closed. Checking for dependent issues...`);
@@ -227,16 +234,18 @@ jobs:
             const pr = context.payload.pull_request;
             const prBody = pr.body || '';
             
-            // Extract linked issues from PR body
-            const issueMatches = prBody.match(/#(\d+)/g);
-            if (!issueMatches) {
-              console.log('No issues linked in PR');
+            // Extract linked issues from PR body (look for "Closes #N" pattern specifically)
+            const closeMatches = prBody.match(/(?:Closes|Fixes|Resolves)\s+#(\d+)/gi);
+            const issueNumbers = closeMatches
+              ? closeMatches.map(m => parseInt(m.match(/#(\d+)/)[1]))
+              : [];
+            
+            if (issueNumbers.length === 0) {
+              console.log('No issues linked in PR via Closes/Fixes/Resolves');
               return;
             }
             
-            for (const match of issueMatches) {
-              const issueNumber = parseInt(match.replace('#', ''));
-              
+            for (const issueNumber of issueNumbers) {
               try {
                 // Add in-review label to the issue
                 await github.rest.issues.addLabels({
@@ -279,19 +288,22 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const { updateOrchestratorProgress } = require('./scripts/orchestrator-progress-helper');
             const pr = context.payload.pull_request;
             const prBody = pr.body || '';
             
-            // Extract linked issues
-            const issueMatches = prBody.match(/#(\d+)/g);
-            if (!issueMatches) {
-              console.log('No issues linked in PR');
+            // Extract linked issues (look for "Closes #N" pattern specifically)
+            const closeMatches = prBody.match(/(?:Closes|Fixes|Resolves)\s+#(\d+)/gi);
+            const issueNumbers = closeMatches
+              ? closeMatches.map(m => parseInt(m.match(/#(\d+)/)[1]))
+              : [];
+            
+            if (issueNumbers.length === 0) {
+              console.log('No issues linked in PR via Closes/Fixes/Resolves');
               return;
             }
             
-            for (const match of issueMatches) {
-              const issueNumber = parseInt(match.replace('#', ''));
-              
+            for (const issueNumber of issueNumbers) {
               try {
                 // Close the issue
                 await github.rest.issues.update({
@@ -316,10 +328,24 @@ jobs:
 
             Thank you for the contribution! 🎉`
                 });
+
+                // Update orchestrator progress
+                await updateOrchestratorProgress(github, context, issueNumber);
               } catch (error) {
                 console.log(`Error closing issue #${issueNumber}: ${error.message}`);
               }
             }
+      - name: Auto-rebase open agent PRs
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+        uses: actions/github-script@v7
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          MERGED_PR_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          script: |
+            const { autoRebaseOpenPRs } = require('./scripts/auto-rebase');
+            await autoRebaseOpenPRs(github, context);
 
       - name: Inter-agent communication
         if: github.event_name == 'issues' && github.event.action == 'closed'
@@ -398,84 +424,5 @@ jobs:
 
             ${issueLabels.includes('ready') ? '**This issue is ready to start!** @copilot please begin implementation.' : ''}`
                 });
-              }
-            }
-            
-            // Helper function to update orchestrator progress
-            async function updateOrchestratorProgress(github, context, closedIssueNumber) {
-              try {
-                // Get the closed issue to find parent
-                const { data: closedIssue } = await github.rest.issues.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: closedIssueNumber
-                });
-                
-                const parentMatch = (closedIssue.body || '').match(/Parent Issue:\s*#(\d+)/i);
-                if (!parentMatch) {
-                  console.log('No parent orchestrator issue found');
-                  return;
-                }
-                
-                const orchestratorNumber = parseInt(parentMatch[1]);
-                
-                // Get all issues linked to this orchestrator
-                const { data: allIssues } = await github.rest.issues.listForRepo({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  state: 'all',
-                  per_page: 100
-                });
-                
-                const linkedIssues = allIssues.filter(issue => {
-                  const body = issue.body || '';
-                  return body.includes(`Parent Issue: #${orchestratorNumber}`) && 
-                         issue.number !== orchestratorNumber;
-                });
-                
-                const totalIssues = linkedIssues.length;
-                const completedIssues = linkedIssues.filter(i => i.state === 'closed').length;
-                const progress = totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0;
-                
-                // Update orchestrator issue title with progress
-                const { data: orchestrator } = await github.rest.issues.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: orchestratorNumber
-                });
-                
-                const newTitle = orchestrator.title.replace(/\s*\[\d+\/\d+\]\s*$/, '') + 
-                                 ` [${completedIssues}/${totalIssues}]`;
-                
-                await github.rest.issues.update({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: orchestratorNumber,
-                  title: newTitle
-                });
-                
-                // If all issues are complete, add a completion comment
-                if (completedIssues === totalIssues && totalIssues > 0) {
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: orchestratorNumber,
-                    body: `## 🎉 All Issues Completed!
-
-            **Congratulations!** All ${totalIssues} issues have been successfully completed.
-
-            **Final Status:**
-            - ✅ Completed: ${completedIssues}/${totalIssues} (100%)
-
-            **Next Steps:**
-            1. Test the complete implementation
-            2. Deploy to production
-            3. Close this orchestrator issue when satisfied
-
-            Thank you for using the AI Dev Team! 🚀`
-                  });
-                }
-              } catch (error) {
-                console.log(`Error updating orchestrator progress: ${error.message}`);
               }
             }
