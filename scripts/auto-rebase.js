@@ -23,26 +23,38 @@ const { execSync } = require('child_process');
 module.exports = { autoRebaseOpenPRs, resolveConflictsWithAI };
 
 /**
- * Main entry point: find and rebase all open agent PRs.
+ * Main entry point: find and rebase open agent PRs.
+ * If specificPRNumber is provided, only processes that PR.
  */
-async function autoRebaseOpenPRs(github, context) {
+async function autoRebaseOpenPRs(github, context, specificPRNumber = null) {
     const owner = context.repo.owner;
     const repo = context.repo.repo;
     const mergedPR = parseInt(process.env.MERGED_PR_NUMBER || '0');
 
-    // 1. Find all open PRs on agent/* branches
-    const { data: openPRs } = await github.rest.pulls.list({
-        owner,
-        repo,
-        state: 'open',
-        per_page: 100
-    });
+    let agentPRs;
+    if (specificPRNumber) {
+        console.log(`Manual trigger for PR #${specificPRNumber}`);
+        const { data: pr } = await github.rest.pulls.get({
+            owner,
+            repo,
+            pull_number: parseInt(specificPRNumber)
+        });
+        agentPRs = [pr];
+    } else {
+        // 1. Find all open PRs on agent/* branches
+        const { data: openPRs } = await github.rest.pulls.list({
+            owner,
+            repo,
+            state: 'open',
+            per_page: 100
+        });
 
-    const agentPRs = openPRs.filter(pr =>
-        pr.head.ref.startsWith('agent/') && pr.number !== mergedPR
-    );
+        agentPRs = openPRs.filter(pr =>
+            pr.head.ref.startsWith('agent/') && pr.number !== mergedPR
+        );
+    }
 
-    if (agentPRs.length === 0) {
+    if (!agentPRs || agentPRs.length === 0) {
         console.log('No open agent PRs to rebase.');
         return;
     }
@@ -101,7 +113,7 @@ async function autoRebaseOpenPRs(github, context) {
 
             await postComment(github, owner, repo, pr.number,
                 `## ✅ Auto-Rebased\n\n` +
-                `This PR has been automatically rebased onto the latest \`main\` after a sibling PR was merged.\n\n` +
+                `This branch has been automatically rebased onto the latest \`main\`.\n\n` +
                 `No conflicts detected — the branch is up to date.`
             );
         } catch (err) {
@@ -233,10 +245,10 @@ Return ONLY the resolved file content with NO conflict markers. Do not include a
         // Post a detailed comment
         await postComment(github, context.repo.owner, context.repo.repo, pr.number,
             `## 🤖 Auto-Rebased (AI Conflict Resolution)\n\n` +
-            `This PR had conflicts with \`main\` after a sibling PR was merged.\n\n` +
+            `Conflicts with \`main\` were detected and have been automatically resolved using AI.\n\n` +
             `**Resolved files:**\n` +
             conflictedFiles.map(f => `- \`${f}\``).join('\n') + '\n\n' +
-            `> ⚠️ Please review the AI-resolved changes carefully before merging.`
+            `> ⚠️ Please review the AI-resolved changes carefully.`
         );
 
         return true;

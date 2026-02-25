@@ -309,8 +309,26 @@ jobs:
                 execSync(`git push --force-with-lease origin ${branchName}`);
               } catch (pushErr) {
                 console.log('Push failed, attempting rebase on latest main...');
-                execSync('git fetch origin main');
-                execSync('git rebase origin/main');
+                try {
+                  execSync('git fetch origin main');
+                  execSync('git rebase origin/main');
+                } catch (rebaseErr) {
+                  console.log('Rebase conflict! Attempting AI resolution...');
+                  try {
+                    const { resolveConflictsWithAI } = require('./scripts/auto-rebase');
+                    // solveConflictsWithAI expects a PR object with title and optionally number
+                    const resolved = await resolveConflictsWithAI(github, context, {
+                      title: issueTitle,
+                      number: issueNumber // Post comment to issue if resolution succeeds
+                    });
+                    if (!resolved) {
+                      throw new Error('AI could not resolve conflicts during rebase.');
+                    }
+                  } catch (aiErr) {
+                    console.error('AI resolution failed:', aiErr.message);
+                    throw new Error(`Rebase failed and AI could not resolve: ${aiErr.message}`);
+                  }
+                }
                 execSync(`git push --force-with-lease origin ${branchName}`);
               }
 
