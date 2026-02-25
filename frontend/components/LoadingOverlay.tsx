@@ -1,12 +1,18 @@
 import React from 'react';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import { theme } from '../styles/theme';
+import { globalStyles } from '../styles/globalStyles';
 
 interface LoadingOverlayProps {
+  isLoading: boolean;
   message?: string;
 }
 
-const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message = 'Loading...' }) => {
+const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isLoading, message = 'Loading...' }) => {
+  if (!isLoading) {
+    return null;
+  }
+
   return (
     <View style={styles.overlay}>
       <View style={styles.container}>

@@ -1,23 +1,46 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { useNavigation, NativeStackNavigationProp } from '@react-navigation/native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { useNavigation, useRoute, RouteProp, NativeStackNavigationProp } from '@react-navigation/native';
 import { globalStyles } from '../styles/globalStyles';
-import { createWorkout } from '../utils/api';
+import { getWorkoutById, updateWorkout } from '../utils/api';
 import { RootStackParamList, WorkoutFormData } from '../types';
 import LoadingOverlay from '../components/LoadingOverlay';
 import ErrorMessage from '../components/ErrorMessage';
 
-type WorkoutLogScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutLog'>;
+type WorkoutEditScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutEdit'>;
+type WorkoutEditScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WorkoutEdit'>;
 
-const WorkoutLogScreen: React.FC = () => {
-  const navigation = useNavigation<WorkoutLogScreenNavigationProp>();
+const WorkoutEditScreen: React.FC = () => {
+  const navigation = useNavigation<WorkoutEditScreenNavigationProp>();
+  const route = useRoute<WorkoutEditScreenRouteProp>();
+  const { workoutId } = route.params;
 
   const [workoutType, setWorkoutType] = useState<string>('');
   const [duration, setDuration] = useState<string>('');
   const [caloriesBurned, setCaloriesBurned] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Initial loading for fetching data
+  const [isSaving, setIsSaving] = useState<boolean>(false); // Loading for saving changes
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchWorkoutData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const fetchedWorkout = await getWorkoutById(workoutId);
+        setWorkoutType(fetchedWorkout.type);
+        setDuration(fetchedWorkout.duration.toString());
+        setCaloriesBurned(fetchedWorkout.caloriesBurned.toString());
+        setNotes(fetchedWorkout.notes || '');
+      } catch (err: any) {
+        setError(err.message || 'Failed to load workout data for editing.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchWorkoutData();
+  }, [workoutId]);
 
   const validateInputs = (): boolean => {
     if (!workoutType.trim()) {
@@ -38,12 +61,12 @@ const WorkoutLogScreen: React.FC = () => {
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (!validateInputs()) {
       return;
     }
 
-    setIsLoading(true);
+    setIsSaving(true);
     setError(null);
 
     const workoutData: WorkoutFormData = {
@@ -54,20 +77,29 @@ const WorkoutLogScreen: React.FC = () => {
     };
 
     try {
-      await createWorkout(workoutData);
-      Alert.alert('Success', 'Workout logged successfully!', [
+      await updateWorkout(workoutId, workoutData);
+      Alert.alert('Success', 'Workout updated successfully!', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err: any) {
-      setError(err.message || 'Failed to log workout. Please try again.');
+      setError(err.message || 'Failed to update workout. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
+  if (isLoading) {
+    return (
+      <View style={globalStyles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007bff" />
+        <Text style={{ marginTop: 10 }}>Loading workout data...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={globalStyles.container} keyboardShouldPersistTaps="handled">
-      <Text style={globalStyles.title}>Log New Workout</Text>
+      <Text style={globalStyles.title}>Edit Workout</Text>
 
       <Text style={globalStyles.label}>Workout Type:</Text>
       <TextInput
@@ -107,13 +139,13 @@ const WorkoutLogScreen: React.FC = () => {
 
       <ErrorMessage message={error} />
 
-      <TouchableOpacity style={globalStyles.button} onPress={handleSubmit} disabled={isLoading}>
-        <Text style={globalStyles.buttonText}>Log Workout</Text>
+      <TouchableOpacity style={globalStyles.button} onPress={handleSave} disabled={isSaving}>
+        <Text style={globalStyles.buttonText}>Save Changes</Text>
       </TouchableOpacity>
 
-      <LoadingOverlay isLoading={isLoading} />
+      <LoadingOverlay isLoading={isSaving} />
     </ScrollView>
   );
 };
 
-export default WorkoutLogScreen;
+export default WorkoutEditScreen;
