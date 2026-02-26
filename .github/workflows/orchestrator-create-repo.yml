@@ -1,0 +1,95 @@
+name: Orchestrator - Create Repository
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: write
+
+jobs:
+  create-repo:
+    if: github.event.label.name == 'create-repo'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Parse Issue Body
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || '';
+            
+            // Extract fields using Regex
+            const nameMatch = body.match(/### 📛 Repository Name\s+([\s\S]*?)(?=\n###|$)/i);
+            const descMatch = body.match(/### 📝 Repository Description\s+([\s\S]*?)(?=\n###|$)/i);
+            const visMatch = body.match(/### 🔒 Visibility\s+([\s\S]*?)(?=\n###|$)/i);
+            const keyMatch = body.match(/### 🔑 Gemini API Key\s+([\s\S]*?)(?=\n###|$)/i);
+            
+            const repoName = nameMatch ? nameMatch[1].trim() : '';
+            const repoDesc = descMatch ? descMatch[1].trim() : '';
+            const visibility = (visMatch ? visMatch[1].trim().toLowerCase() : 'public') === 'private' ? 'private' : 'public';
+            const geminiKey = keyMatch ? keyMatch[1].trim() : '';
+            
+            if (!repoName) {
+              core.setFailed('Repository name is required');
+              return;
+            }
+            
+            core.setOutput('name', repoName);
+            core.setOutput('description', repoDesc);
+            core.setOutput('visibility', visibility);
+            core.setOutput('gemini_key', geminiKey);
+            
+            console.log(`Repository Name: ${repoName}`);
+            console.log(`Visibility: ${visibility}`);
+
+      - name: Create GitHub Repository
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          REPO_NAME="${{ steps.parse.outputs.name }}"
+          REPO_DESC="${{ steps.parse.outputs.description }}"
+          VISIBILITY="${{ steps.parse.outputs.visibility }}"
+          
+          # Create the repository using GitHub CLI
+          # Note: This creates the repository under the authenticated user/org
+          gh repo create "$REPO_NAME" --$VISIBILITY --description "$REPO_DESC" --confirm
+
+      - name: Set Gemini API Key Secret (if provided)
+        if: steps.parse.outputs.gemini_key != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          REPO_NAME="${{ steps.parse.outputs.name }}"
+          GEMINI_KEY="${{ steps.parse.outputs.gemini_key }}"
+          OWNER="${{ github.repository_owner }}"
+          
+          # Set the secret in the newly created repository
+          echo "$GEMINI_KEY" | gh secret set GOOGLE_API_KEY --repo "$OWNER/$REPO_NAME"
+
+      - name: Comment and Close Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repoName = '${{ steps.parse.outputs.name }}';
+            const owner = context.repo.owner;
+            const repoUrl = `https://github.com/${owner}/${repoName}`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🎉 Repository Created Successfully!\n\nYour new repository is ready: [${repoName}](${repoUrl})\n\nI have closed this issue. Happy coding! 🚀`
+            });
+            
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed'
+            });

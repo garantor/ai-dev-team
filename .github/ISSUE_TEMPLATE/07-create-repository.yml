@@ -1,0 +1,72 @@
+name: "🆕 Create Repository"
+description: "Create a new GitHub repository directly from your profile"
+title: "[REPO] "
+labels: ["orchestrator", "create-repo"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🆕 Create New Repository
+        
+        Fill out the details below to create a new repository in your GitHub profile.
+        The AI Orchestrator will handle the creation and setup.
+
+  - type: input
+    id: repo-name
+    attributes:
+      label: "📛 Repository Name"
+      description: "Enter a unique name for your new repository"
+      placeholder: "e.g., my-awesome-web-app"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repo-description
+    attributes:
+      label: "📝 Repository Description"
+      description: "What is this repository for?"
+      placeholder: "A brief description of your project..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: visibility
+    attributes:
+      label: "🔒 Visibility"
+      description: "Should the repository be public or private?"
+      options:
+        - "Public"
+        - "Private"
+    validations:
+      required: true
+
+  - type: input
+    id: gemini-api-key
+    attributes:
+      label: "🔑 Gemini API Key"
+      description: "Optional: Provide a Gemini API key to enable AI features in the new repo"
+      placeholder: "Enter your API key here..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: "✅ Confirmation"
+      options:
+        - label: "I understand a new repository will be created in my profile"
+          required: true
+        - label: "I have the necessary permissions to create repositories"
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **What happens next?**
+        1. The AI Orchestrator will parse your request.
+        2. A new repository will be created via GitHub API.
+        3. You will receive a link to the new repository in this issue.
+        4. The issue will be closed automatically.
