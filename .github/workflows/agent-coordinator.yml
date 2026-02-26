@@ -362,6 +362,15 @@ jobs:
           script: |
             const { autoRebaseOpenPRs } = require('./scripts/auto-rebase');
             const prNumber = context.payload.issue.number;
+
+            // Post immediate feedback
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `⏳ **Auto-Rebase Started**\n\nAttempting to rebase this branch onto \`main\` and resolve any conflicts using AI. This may take a minute...`
+            });
+
             await autoRebaseOpenPRs(github, context, prNumber);
 
       - name: Inter-agent communication
