@@ -1,0 +1,21 @@
+{
+  "name": "qa-performance-tests",
+  "version": "1.0.0",
+  "description": "Performance tests for application responsiveness and API latency.",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run qa/unit",
+    "test:integration": "vitest run qa/integration",
+    "test:e2e": "vitest run qa/e2e"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "node-fetch": "^3.3.2",
+    "vitest": "^1.6.0"
+  },
+  "type": "module"
+}
