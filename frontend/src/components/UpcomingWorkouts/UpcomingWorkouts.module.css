@@ -1,0 +1,84 @@
+.workoutList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.workoutItem {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  margin-bottom: var(--spacing-sm);
+  background-color: var(--color-background-secondary);
+  transition: box-shadow var(--transition-speed-fast) var(--transition-easing-ease-in-out);
+}
+
+.workoutItem:hover {
+  box-shadow: var(--shadow-elevation-1);
+}
+
+.workoutHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+}
+
+.workoutType {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary-dark);
+  background-color: var(--color-primary-light);
+  padding: 2px var(--spacing-xs);
+  border-radius: var(--border-radius-sm);
+}
+
+.workoutDate {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.workoutDetails {
+  margin-bottom: var(--spacing-sm);
+}
+
+.workoutName {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.workoutTimeLocation {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.time,
+.location {
+  font-weight: var(--font-weight-medium);
+}
+
+.viewDetailsButton {
+  align-self: flex-end;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-secondary);
+  color: var(--color-text-on-primary);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: background-color var(--transition-speed-fast) var(--transition-easing-ease-in-out);
+}
+
+.viewDetailsButton:hover {
+  background-color: var(--color-secondary-dark);
+}
+
+.noWorkouts {
+  color: var(--color-text-secondary);
+  text-align: center;
+  padding: var(--spacing-md);
+}
