@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: 🏷️ Setup Labels First
-    url: https://github.com/garantor/ai-dev-team/labels
-    about: Ensure all required labels are created before using orchestrator
-  - name: 💬 Discussion
-    url: https://github.com/garantor/ai-dev-team/discussions
-    about: Ask questions and discuss ideas with the community
